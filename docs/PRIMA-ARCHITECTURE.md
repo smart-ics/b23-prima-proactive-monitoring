@@ -1,0 +1,701 @@
+# PRIMA ARCHITECTURE SPECIFICATION
+**System:** PrIMA (Proactive Inspection Monitoring App)  
+**Document:** Unified Backend & Frontend Architecture  
+**Status:** Approved Technical Architecture  
+**Style:** Pragmatic, Direct, Minimalist  
+**Stack:** .NET 8+ / ASP.NET Core Minimal APIs / SQL Server / Dapper + Vue 3 / Vite / Tailwind CSS v4 / PrimeVue v4 / TanStack Query  
+
+---
+
+## 1. Architectural Philosophy & Decisions
+
+PrIMA is a specialized operational monitoring and issue management application designed for Hospital Information Systems (SIMRS). Its architecture is deliberately **pragmatic, explicit, and minimalist**:
+
+1. **No Assembly Bloat:** The backend is packaged into a **Single Web API Project** (`src/backend/PrIMA.Api/`) partitioned cleanly using folder-based Vertical Slices and Domain-Driven Design (DDD). No multi-project ceremony.
+2. **Domain-Driven Core with Mandatory CQRS:**
+   - **Write Operations:** Mutate state strictly through Domain Aggregate Roots (`Detector`, `Issue`). Invariants and state machines live in the domain model. SQL updates live in explicit Dapper repositories.
+   - **Read Operations:** Pure direct Dapper queries projected straight to DTOs in query handlers. No aggregate roots or change tracking overhead on reads.
+3. **Autonomous Ingestion & Silence Supervision:**
+   - Detectors run externally and post telemetry via a dedicated API Key authenticated ingestion endpoint (`/api/ingestion/telemetry`).
+   - A built-in ASP.NET Core `BackgroundService` evaluates detector silence cadence and performs dynamic severity escalation on unacknowledged issues every 60 seconds.
+4. **Zero-Infrastructure Real-Time Sync:**
+   - The Vue frontend stays fresh using **TanStack Query automated polling** (every 10–15s for the active dashboard and feeds). No WebSocket or SignalR infrastructure required.
+5. **Lightweight Auth & Attribution:**
+   - Simple local accounts for EDP officers with JWT Bearer tokens. Every investigation note, remediation action, and verification is deterministically attributed to the authenticated officer.
+6. **Single Database Schema (`dbo`):**
+   - Clean relational SQL Server tables managed via embedded **DbUp SQL migration scripts** executed on startup.
+
+---
+
+## 2. Technology Stack Reference
+
+| Layer | Technology | Version | Purpose & Rationale |
+|---|---|---|---|
+| **Backend Runtime** | .NET (C#) | `8.0+` | High throughput, modern Minimal APIs, strong typing |
+| **API Framework** | ASP.NET Core Minimal APIs | `8.0+` | Direct route mapping, OpenAPI/Scalar, zero controller boilerplate |
+| **Data Access** | Dapper | `2.1+` | Explicit, fast SQL execution with zero ORM abstraction overhead |
+| **Database** | Microsoft SQL Server | `2019+` | Enterprise persistence in hospital environments |
+| **DB Migrations** | DbUp (SQL Server) | `5.0+` | Plain `.sql` scripts executed on application bootstrap |
+| **Validation** | FluentValidation | `11.9+` | Request format validation at API boundary |
+| **Authentication** | JWT Bearer Authentication | `8.0+` | Lightweight token with Officer ID and Name |
+| **Frontend Framework** | Vue 3 (Composition API) | `3.5+` | `<script setup lang="ts">`, high reactivity, low bundle size |
+| **Build Tool** | Vite | `6.0+` | Ultra-fast HMR and ESM bundling |
+| **CSS & Design System** | Tailwind CSS v4 + PrimeVue v4 | Tailwind `^4.0`, PrimeVue `^4.2` | Aura preset with custom Tailwind utility overrides |
+| **Server State** | TanStack Query for Vue | `5.60+` | Query caching, deduplication, auto-polling (10-15s), mutation invalidation |
+| **Client State** | Pinia | `2.2+` | Officer JWT session and active filter persistence only |
+| **Forms & Validation** | VeeValidate + Zod | VeeValidate `^4.14`, Zod `^3.23` | Schema-first client validation matching RFC 7807 problem details |
+| **API Contract Sync** | openapi-typescript | `7.4+` | Synchronizes backend `/swagger/v1/swagger.json` to frontend TypeScript types |
+
+---
+
+## 3. End-to-End System Topology
+
+```mermaid
+flowchart TD
+    subgraph External["External SIMRS Environment"]
+        DetA["Detector A (Cron / Script)"]
+        DetB["Detector B (Event Hook)"]
+        DetC["Detector C (Service Probe)"]
+    end
+
+    subgraph BackendHost["PrIMA Backend (ASP.NET Core Minimal API)"]
+        IngestAPI["/api/ingestion/telemetry\n(API Key Authenticated)"]
+        UserAPI["/api/issues/*\n/api/detectors/*\n/api/history/*\n(JWT Authenticated)"]
+        BgWorker["PrIMA Background Worker\n(Silence Cadence & Escalation Evaluator)"]
+        
+        subgraph DomainEngine["Domain & Application Slices"]
+            IssueAgg["Issue Aggregate\n(Deduplication, Lifecycle, Verification Gate)"]
+            DetAgg["Detector Aggregate\n(Cadence, Liveness, Status)"]
+        end
+        
+        DapperRepo["Dapper SQL Repositories & Projections"]
+    end
+
+    subgraph Database["SQL Server (Single Database: dbo)"]
+        DB[(Tables: Detectors, Runs, Issues, Occurrences, Notes, Remediation, Verification)]
+    end
+
+    subgraph Frontend["PrIMA Frontend (Vue 3 Single Page App)"]
+        S01["S-01 Issue Dashboard\n(Polling 10-15s)"]
+        S02["S-02 Issue Detail Workbench\n(Triage, Notes, Remediation, Gate)"]
+        S03["S-03 Detector List & Health"]
+        TanStack["TanStack Query Cache"]
+        PiniaAuth["Pinia Auth Store\n(Officer Session)"]
+    end
+
+    DetA -->|"POST /api/ingestion/telemetry"| IngestAPI
+    DetB -->|"POST /api/ingestion/telemetry"| IngestAPI
+    DetC -->|"POST /api/ingestion/telemetry"| IngestAPI
+
+    IngestAPI --> IssueAgg
+    IngestAPI --> DetAgg
+    UserAPI --> IssueAgg
+    UserAPI --> DetAgg
+    BgWorker --> DetAgg
+    BgWorker --> IssueAgg
+
+    IssueAgg --> DapperRepo
+    DetAgg --> DapperRepo
+    DapperRepo --> DB
+
+    Frontend -->|"HTTPS / REST (JWT Bearer)"| UserAPI
+    TanStack --> UserAPI
+    UserAPI -.->|"OpenAPI JSON"| Frontend
+```
+
+---
+
+## 4. Backend Architecture (`src/backend/PrIMA.Api/`)
+
+### 4.1 Solution & Directory Structure
+
+```text
+src/backend/PrIMA.Api/
+├── Program.cs                         # WebApplication entrypoint, middleware, and slice endpoint mapping
+├── appsettings.json                   # Connection string, JWT key, Ingestion API keys, cadence defaults
+├── Common/                            # Shared kernel primitives
+│   ├── Result.cs                      # Result<T> functional outcome pattern
+│   ├── DomainError.cs                 # Strongly typed error records (NotFound, Conflict, Validation)
+│   ├── ProblemDetailsExtensions.cs    # RFC 7807 ProblemDetails mapping
+│   ├── IEndpoint.cs                   # Endpoint scanning interface
+│   ├── ISqlConnectionFactory.cs       # SQL Server connection factory (Dapper)
+│   └── CurrentOfficer.cs              # Scoped officer identity from JWT claims
+│
+├── Migrations/                        # DbUp SQL migration scripts
+│   ├── MigrationRunner.cs             # Executes scripts at startup
+│   ├── Scripts/
+│   │   ├── 001_InitialSchema.sql      # Tables, indexes, foreign keys
+│   │   └── 002_SeedInitialUsers.sql   # Seeded EDP officer accounts
+│
+├── BackgroundServices/                # Periodic workers
+│   └── MonitoringSupervisorWorker.cs  # Silence checker & auto-escalation timer (every 60s)
+│
+├── Domain/                            # Pure domain layer (Zero external dependencies)
+│   ├── Detectors/
+│   │   ├── Detector.cs                # Detector Aggregate Root
+│   │   ├── InspectionRun.cs           # Inspection Run Entity
+│   │   ├── MonitoringScope.cs         # Value Object / Enum (DataIntegrity, Process, Sync, Infra)
+│   │   ├── DetectorHealth.cs          # Healthy, Silent, Failing
+│   │   └── IDetectorRepository.cs     # Write persistence interface
+│   │
+│   └── Issues/
+│       ├── Issue.cs                   # Issue Aggregate Root
+│       ├── CorrelationKey.cs          # Value Object (Deterministic key)
+│       ├── TelemetryEvidence.cs       # Value Object (Diagnostic snapshot)
+│       ├── Occurrence.cs              # Entity (Immutable observation)
+│       ├── InvestigationNote.cs       # Entity (Chronological notes)
+│       ├── RemediationRecord.cs       # Value Object (Action category + description)
+│       ├── VerificationRecord.cs      # Value Object (Method + CleanPassed result)
+│       ├── DismissalRecord.cs         # Value Object (Reason + Rationale)
+│       ├── IssueStatus.cs             # Open, Acknowledged, Investigating, Resolved, Dismissed, Reopened
+│       ├── IssueSeverity.cs           # Low, Medium, High, Critical
+│       ├── IssueErrors.cs             # Domain error factory
+│       └── IIssueRepository.cs        # Write persistence interface
+│
+├── Infrastructure/                    # Persistence & external communication
+│   ├── Persistence/
+│   │   ├── SqlConnectionFactory.cs    # SqlConnection provider
+│   │   ├── DetectorRepository.cs      # Dapper implementation of IDetectorRepository
+│   │   └── IssueRepository.cs         # Dapper implementation of IIssueRepository
+│   └── Webhooks/
+│       └── DetectorWebhookClient.cs   # HTTP client to trigger on-demand detector runs
+│
+└── Features/                          # Vertical Slices (grouped by operational capability)
+    ├── Auth/
+    │   ├── LoginEndpoint.cs
+    │   ├── LoginRequest.cs
+    │   └── LoginResponse.cs
+    │
+    ├── Ingestion/                     # External detector telemetry intake
+    │   ├── IngestTelemetryEndpoint.cs # POST /api/ingestion/telemetry
+    │   ├── IngestTelemetryRequest.cs
+    │   ├── IngestTelemetryValidator.cs
+    │   └── IngestTelemetryHandler.cs  # Deduplication, Occurrence appending, or Issue creation
+    │
+    ├── Issues/                        # Operational issue management
+    │   ├── GetDashboardFeed/          # Query: S-01 Issue Feed & Summary Counters
+    │   ├── GetIssueById/              # Query: S-02 Full issue details + timeline
+    │   ├── AcknowledgeIssue/          # Command: Open -> Acknowledged
+    │   ├── AssignIssue/               # Command: Acknowledge + Assign / Self-assign ("Take It")
+    │   ├── AddInvestigationNote/      # Command: Append note
+    │   ├── RecordRemediation/         # Command: Record action taken (M-02)
+    │   ├── TriggerVerificationRun/    # Command: Call detector webhook to re-verify (D-2)
+    │   ├── RecordManualVerification/  # Command: Manual query result record (M-03)
+    │   ├── ResolveIssue/              # Command: Transition to Resolved (enforces Verification Gate)
+    │   └── DismissIssue/              # Command: Transition to Dismissed with rationale (M-01)
+    │
+    ├── Detectors/                     # Detector portfolio management
+    │   ├── GetDetectorList/           # Query: S-03 list + health status
+    │   ├── GetDetectorById/           # Query: S-04 detail + recent runs
+    │   ├── RegisterDetector/          # Command: S-05 create
+    │   ├── UpdateDetector/            # Command: S-05 update config
+    │   ├── ToggleDetectorStatus/      # Command: Active <-> Paused / Retire
+    │   └── TriggerManualRun/          # Command: E-7 on-demand execution
+    │
+    └── History/                       # Historical reports & retrospectives
+        ├── GetHistoricalIssues/       # Query: S-07 filterable history
+        └── GetReliabilityKpi/         # Query: S-07 summary KPIs (pass rates, MTTR)
+```
+
+---
+
+### 4.2 Domain Model & Invariants
+
+#### 4.2.1 Issue Aggregate Root & State Transitions
+The `Issue` aggregate is the single authority for issue state, recurrence, and lifecycle progression:
+
+```csharp
+namespace PrIMA.Api.Domain.Issues;
+
+public sealed class Issue
+{
+    public Guid Id { get; private set; }
+    public CorrelationKey CorrelationKey { get; private set; } = null!;
+    public string Title { get; private set; } = string.Empty;
+    public Guid DetectorId { get; private set; }
+    public string DetectorName { get; private set; } = string.Empty;
+    public MonitoringScope Scope { get; private set; }
+    public IssueSeverity BaseSeverity { get; private set; }
+    public IssueSeverity CurrentSeverity { get; private set; }
+    public IssueStatus Status { get; private set; }
+    public int EscalationLevel { get; private set; }
+    public string? CurrentAssignee { get; private set; }
+    public DateTime CreatedAtUtc { get; private set; }
+    public DateTime LastOccurrenceAtUtc { get; private set; }
+    public DateTime? AcknowledgedAtUtc { get; private set; }
+    public DateTime? ResolvedAtUtc { get; private set; }
+    public DateTime? ReopenedAtUtc { get; private set; }
+
+    private readonly List<Occurrence> _occurrences = [];
+    public IReadOnlyCollection<Occurrence> Occurrences => _occurrences.AsReadOnly();
+
+    private readonly List<InvestigationNote> _notes = [];
+    public IReadOnlyCollection<InvestigationNote> Notes => _notes.AsReadOnly();
+
+    public RemediationRecord? LatestRemediation { get; private set; }
+    public VerificationRecord? LatestVerification { get; private set; }
+    public DismissalRecord? Dismissal { get; private set; }
+
+    private Issue() { }
+
+    // Factory: Initial anomaly discovery
+    public static Issue Create(
+        Guid detectorId,
+        string detectorName,
+        MonitoringScope scope,
+        string title,
+        CorrelationKey correlationKey,
+        IssueSeverity baseSeverity,
+        TelemetryEvidence evidence,
+        DateTime discoveredAtUtc)
+    {
+        var issue = new Issue
+        {
+            Id = Guid.NewGuid(),
+            DetectorId = detectorId,
+            DetectorName = detectorName,
+            Scope = scope,
+            Title = title,
+            CorrelationKey = correlationKey,
+            BaseSeverity = baseSeverity,
+            CurrentSeverity = baseSeverity,
+            Status = IssueStatus.Open,
+            EscalationLevel = 0,
+            CreatedAtUtc = discoveredAtUtc,
+            LastOccurrenceAtUtc = discoveredAtUtc
+        };
+
+        issue._occurrences.Add(new Occurrence(Guid.NewGuid(), issue.Id, 1, discoveredAtUtc, evidence));
+        return issue;
+    }
+
+    // BR-PRIMA-001 & BR-PRIMA-002: Ingest recurring finding
+    public void RecordRecurringOccurrence(TelemetryEvidence evidence, DateTime occurrenceTimeUtc)
+    {
+        var nextNumber = _occurrences.Count + 1;
+        _occurrences.Add(new Occurrence(Guid.NewGuid(), Id, nextNumber, occurrenceTimeUtc, evidence));
+        LastOccurrenceAtUtc = occurrenceTimeUtc;
+
+        // BR-PRIMA-002: Reopen if previously closed
+        if (Status is IssueStatus.Resolved or IssueStatus.Dismissed)
+        {
+            Status = IssueStatus.Reopened;
+            ReopenedAtUtc = occurrenceTimeUtc;
+            Dismissal = null;
+            LatestVerification = null; // Prior verification invalid
+        }
+
+        // BR-PRIMA-003: Check recurrence threshold escalation
+        CheckRecurrenceEscalation();
+    }
+
+    // Acknowledge & Assign ("Take It")
+    public Result TakeIt(string officerName, DateTime timestampUtc)
+    {
+        if (Status is IssueStatus.Resolved or IssueStatus.Dismissed)
+            return Result.Failure(IssueErrors.InvalidStateTransition(Status, IssueStatus.Investigating));
+
+        Status = IssueStatus.Investigating;
+        CurrentAssignee = officerName;
+        AcknowledgedAtUtc ??= timestampUtc;
+        return Result.Success();
+    }
+
+    // Record Remediation (M-02)
+    public Result RecordRemediation(string category, string description, string officerName, DateTime timestampUtc)
+    {
+        if (Status != IssueStatus.Investigating)
+            return Result.Failure(IssueErrors.ActionRequiresStatus(IssueStatus.Investigating));
+
+        LatestRemediation = new RemediationRecord(category, description, officerName, timestampUtc);
+        return Result.Success();
+    }
+
+    // Record Verification (D-2 or M-03)
+    public Result RecordVerification(string method, bool cleanPassed, string evidenceNotes, string verifiedBy, DateTime timestampUtc)
+    {
+        if (Status != IssueStatus.Investigating)
+            return Result.Failure(IssueErrors.ActionRequiresStatus(IssueStatus.Investigating));
+
+        if (LatestRemediation == null)
+            return Result.Failure(IssueErrors.RemediationRequiredBeforeVerification());
+
+        LatestVerification = new VerificationRecord(method, cleanPassed, evidenceNotes, verifiedBy, timestampUtc);
+        return Result.Success();
+    }
+
+    // BR-PRIMA-004: Mandatory Verification Gate
+    public Result MarkResolved(string officerName, DateTime timestampUtc)
+    {
+        if (Status != IssueStatus.Investigating)
+            return Result.Failure(IssueErrors.InvalidStateTransition(Status, IssueStatus.Resolved));
+
+        if (LatestVerification == null || !LatestVerification.CleanPassed)
+            return Result.Failure(IssueErrors.VerificationGateFailed());
+
+        Status = IssueStatus.Resolved;
+        ResolvedAtUtc = timestampUtc;
+        return Result.Success();
+    }
+
+    // BR-PRIMA-006: Dismissal with justification (M-01)
+    public Result Dismiss(string reason, string rationale, string officerName, DateTime timestampUtc)
+    {
+        if (Status is IssueStatus.Resolved or IssueStatus.Dismissed)
+            return Result.Failure(IssueErrors.InvalidStateTransition(Status, IssueStatus.Dismissed));
+
+        if (string.IsNullOrWhiteSpace(rationale) || rationale.Trim().Length < 20)
+            return Result.Failure(IssueErrors.DismissalRationaleTooShort());
+
+        Status = IssueStatus.Dismissed;
+        Dismissal = new DismissalRecord(reason, rationale.Trim(), officerName, timestampUtc);
+        return Result.Success();
+    }
+
+    // Escalation rule
+    public void CheckSlaEscalation(TimeSpan unacknowledgedTimeout, DateTime currentUtc)
+    {
+        if (Status == IssueStatus.Open && (currentUtc - CreatedAtUtc) > unacknowledgedTimeout)
+        {
+            ElevateSeverity();
+        }
+    }
+
+    private void CheckRecurrenceEscalation()
+    {
+        if (_occurrences.Count >= 5 && CurrentSeverity < IssueSeverity.Critical)
+        {
+            ElevateSeverity();
+        }
+    }
+
+    private void ElevateSeverity()
+    {
+        if (CurrentSeverity == IssueSeverity.Low) CurrentSeverity = IssueSeverity.Medium;
+        else if (CurrentSeverity == IssueSeverity.Medium) CurrentSeverity = IssueSeverity.High;
+        else if (CurrentSeverity == IssueSeverity.High) CurrentSeverity = IssueSeverity.Critical;
+        EscalationLevel++;
+    }
+}
+```
+
+---
+
+### 4.3 Ingestion Protocol & Deduplication Flow
+
+Detectors execute externally and post inspection results to:  
+`POST /api/ingestion/telemetry`  
+**Header:** `X-Detector-API-Key: <secret_key>`
+
+#### Request Payload
+```json
+{
+  "detectorId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "executionTimestampUtc": "2026-11-20T05:30:00Z",
+  "triggerSource": "Scheduled",
+  "outcome": "FindingDiscovered",
+  "durationMs": 1420,
+  "failureReason": null,
+  "finding": {
+    "targetEntityReference": "INV-2026-11-0042",
+    "title": "Unbalanced Journal: Billing Invoice INV-2026-11-0042",
+    "baseSeverity": "High",
+    "evidence": {
+      "module": "Billing",
+      "sourceTable": "acc_journal_entries",
+      "recordKeys": "invoice_id=984321, batch_no=B20261120-1",
+      "debitTotal": 1500000.00,
+      "creditTotal": 1450000.00,
+      "varianceDelta": 50000.00,
+      "trace": "Debit lines sum to 1,500,000 but credit lines sum to 1,450,000. Variance delta of 50,000 unallocated."
+    }
+  }
+}
+```
+
+#### Ingestion Processing Pipeline
+1. **Authenticate Detector:** Validate `X-Detector-API-Key` matches configured secret.
+2. **Record Inspection Run:** Persist the execution telemetry record in `dbo.InspectionRuns`.
+3. **Update Detector Health:** Set `LastRunAtUtc`, `LastHealthyHeartbeatUtc`, and status = `Healthy`.
+4. **Evaluate Finding:**
+   - If `outcome == "Passed"`: End pipeline (return `200 OK`).
+   - If `outcome == "FindingDiscovered"`:
+     - Compute `CorrelationKey = $"{DetectorId}:{TargetEntityReference}"`.
+     - Query `dbo.Issues` for existing active/historical issue by `CorrelationKey`.
+     - **If Match Found:** Load `Issue` aggregate, invoke `issue.RecordRecurringOccurrence(...)`, and persist changes via `IIssueRepository`.
+     - **If No Match:** Instantiate new `Issue` aggregate via `Issue.Create(...)` and insert into `dbo.Issues` and `dbo.Occurrences`.
+5. **Return Status:** `200 OK` with correlation key and issue ID.
+
+---
+
+### 4.4 Automated Background Supervision (`MonitoringSupervisorWorker`)
+
+An ASP.NET Core `BackgroundService` runs on a 60-second loop:
+1. **Silence Detection (BR-PRIMA-010 & BR-PRIMA-005):**
+   - Query all active detectors where `(UtcNow - LastHeartbeatAtUtc) > (ExpectedCadenceSeconds * 2)`.
+   - Update detector health to `Silent`.
+   - Synthesize an issue with Scope = `Infrastructure & Service`, Title = `"Silent Detector: {DetectorName} has missed cadence"`, and CorrelationKey = `"SILENT:{DetectorId}"`.
+2. **Dynamic Severity Escalation (BR-PRIMA-003):**
+   - Query open issues where `Status == 'Open' AND AcknowledgedAtUtc IS NULL`.
+   - If unacknowledged for > 30 minutes (or configured SLA), call `issue.CheckSlaEscalation(...)` and persist elevated severity.
+
+---
+
+### 4.5 Error Handling & RFC 7807 ProblemDetails
+
+Errors follow the `Result<T>` pattern. Handlers translate domain failures to RFC 7807 responses using `ToProblemDetails()`:
+
+| Error Type | HTTP Status | Title | Example Detail |
+|---|---|---|---|
+| `Validation` | 422 Unprocessable Entity | `"Validation Error"` | `"Dismissal rationale must be at least 20 characters."` |
+| `Conflict` | 409 Conflict | `"Business Rule Conflict"` | `"Cannot resolve issue without clean verification record."` |
+| `NotFound` | 404 Not Found | `"Resource Not Found"` | `"Issue '3fa85f64...' was not found."` |
+| `Unauthorized` | 401 Unauthorized | `"Unauthorized"` | `"Invalid or expired authentication token."` |
+
+---
+
+## 5. Frontend Architecture (`src/frontend/`)
+
+> [!NOTE]
+> **Scope Boundary:** This section governs frontend **technical architecture** only (layering, dependency direction, state ownership, API integration, and contract safety). Visual layout, navigation ergonomics, and screen composition are owned by the Screen Inventory and UI/UX Guidelines.
+
+### 5.1 Layer Boundaries & Dependency Direction
+
+The frontend uses a **Feature-Oriented Modular Architecture** with strict unidirectional dependencies:
+
+```mermaid
+flowchart TD
+    App["app/ (Bootstrap, Router, Auth Store, Shell Containers)"]
+    Features["features/* (Domain Slices: auth, dashboard, issues, detectors, history)"]
+    Shared["shared/ (HTTP Client, Generated OpenAPI Types, Generic UI Primitives, Utils)"]
+
+    App --> Features
+    App --> Shared
+    Features --> Shared
+    Features -.->|"FORBIDDEN: No cross-feature imports"| Features
+    Shared -.->|"FORBIDDEN: Zero upward dependencies"| Features
+```
+
+- **State Ownership Rule:** Server state belongs exclusively in **TanStack Query**. Client session state (JWT token, officer identity) belongs in **Pinia**. Ephemeral component state belongs in Vue Composition API (`ref` / `computed`).
+- **Contract Synchronization:** TypeScript DTOs are generated from backend `/swagger/v1/swagger.json` via `openapi-typescript` into `src/shared/types/api.generated.ts` (never edited manually).
+- **Error Mapping:** The centralized Axios interceptor translates RFC 7807 `ProblemDetails` into typed `ApiError` instances. `422` field errors map directly to VeeValidate (`form.setErrors()`); `401` responses trigger session expiration and redirect to login.
+
+---
+
+### 5.2 Frontend Directory Structure
+
+```text
+src/frontend/
+├── index.html
+├── package.json
+├── vite.config.ts
+├── tailwind.config.ts
+│
+├── src/
+│   ├── main.ts                       # App bootstrap, Pinia, PrimeVue, TanStack Query provider
+│   ├── App.vue                       # Root component & router-view
+│   │
+│   ├── app/                          # Application Infrastructure Layer
+│   │   ├── config/
+│   │   │   └── primevue.ts           # PrimeVue v4 preset & PassThrough config
+│   │   ├── router/
+│   │   │   └── index.ts              # Route hierarchy & JWT auth guards
+│   │   ├── stores/
+│   │   │   └── auth.store.ts         # Officer session & JWT token store
+│   │   └── layouts/
+│   │       ├── AppLayout.vue         # Authenticated shell container
+│   │       └── AuthLayout.vue        # Unauthenticated shell container
+│   │
+│   ├── shared/                       # Domain-Agnostic Kernel
+│   │   ├── components/               # Reusable generic UI wrappers & AppErrorBoundary.vue
+│   │   ├── services/
+│   │   │   └── http.ts               # Axios instance, Bearer injection, RFC 7807 error mapper
+│   │   ├── types/
+│   │   │   ├── api.generated.ts      # Auto-generated OpenAPI types (read-only)
+│   │   │   └── common.ts             # ApiError, ProblemDetails types
+│   │   └── utils/
+│   │       └── dateUtils.ts          # date-fns ISO-8601 & relative time utilities
+│   │
+│   └── features/                     # Vertical Feature Slices
+│       ├── auth/                     # Officer authentication slice
+│       ├── dashboard/                # Active issue feed & summary queries (10s polling)
+│       ├── issues/                   # Issue detail queries, lifecycle mutations, Zod form schemas
+│       ├── detectors/                # Detector CRUD, status mutations, run logs (15s polling)
+│       └── history/                  # Historical issue & reliability KPI queries
+```
+
+Each feature slice follows the standard internal anatomy:
+```text
+features/<feature>/
+├── api/          # Axios calls, Query Key factories, TanStack Query/Mutation composables
+├── components/   # Feature-scoped components
+├── schemas/      # Zod validation schemas (paired with VeeValidate)
+├── types/        # Feature-specific view/filter types
+└── views/        # Route-level page orchestrators (no raw HTTP calls)
+```
+
+---
+
+### 5.3 State Management & Polling Conventions
+
+```typescript
+// features/dashboard/api/useDashboardQueries.ts
+import { useQuery } from '@tanstack/vue-query';
+import { dashboardKeys } from './dashboard.keys';
+import { apiClient } from '@/shared/services/http';
+
+export function useIssueFeed(filters: Ref<IssueFilters>) {
+  return useQuery({
+    queryKey: computed(() => dashboardKeys.feed(filters.value)),
+    queryFn: async () => {
+      const response = await apiClient.get('/api/issues/dashboard-feed', {
+        params: filters.value
+      });
+      return response.data;
+    },
+    refetchInterval: 10_000, // Automatic polling every 10 seconds
+    refetchOnWindowFocus: true,
+    staleTime: 5_000
+  });
+}
+```
+
+---
+
+## 6. Database Schema Specification (SQL Server / `dbo`)
+
+Migrations are executed via DbUp at startup in script `001_InitialSchema.sql`:
+
+```sql
+-- Detectors Portfolio
+CREATE TABLE dbo.Detectors (
+    Id UNIQUEIDENTIFIER PRIMARY KEY,
+    Name NVARCHAR(150) NOT NULL,
+    Description NVARCHAR(500) NOT NULL,
+    Scope NVARCHAR(50) NOT NULL,               -- DataIntegrity, ProcessIntegrity, DataSync, Infrastructure
+    TargetModule NVARCHAR(100) NOT NULL,
+    ExpectedCadenceSeconds INT NOT NULL,
+    WebhookUrl NVARCHAR(500) NULL,             -- Endpoint for on-demand re-runs
+    AdminStatus NVARCHAR(30) NOT NULL,         -- Active, Paused, Retired
+    HealthStatus NVARCHAR(30) NOT NULL,        -- Healthy, Silent, Failing
+    LastRunAtUtc DATETIME2 NULL,
+    LastHealthyHeartbeatUtc DATETIME2 NULL,
+    CreatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+-- Inspection Run Telemetry Log
+CREATE TABLE dbo.InspectionRuns (
+    Id UNIQUEIDENTIFIER PRIMARY KEY,
+    DetectorId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES dbo.Detectors(Id),
+    ExecutionTimestampUtc DATETIME2 NOT NULL,
+    TriggerSource NVARCHAR(30) NOT NULL,       -- Scheduled, Manual, EventHook
+    Outcome NVARCHAR(30) NOT NULL,             -- Passed, FindingDiscovered, ExecutionFailed
+    DurationMs INT NOT NULL,
+    FailureReason NVARCHAR(1000) NULL,
+    CreatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+CREATE INDEX IX_InspectionRuns_DetectorId_Time ON dbo.InspectionRuns(DetectorId, ExecutionTimestampUtc DESC);
+
+-- Issues (Central Anomaly Tracking)
+CREATE TABLE dbo.Issues (
+    Id UNIQUEIDENTIFIER PRIMARY KEY,
+    CorrelationKey NVARCHAR(250) NOT NULL,     -- Deterministic deduplication key
+    Title NVARCHAR(250) NOT NULL,
+    DetectorId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES dbo.Detectors(Id),
+    DetectorName NVARCHAR(150) NOT NULL,
+    Scope NVARCHAR(50) NOT NULL,
+    BaseSeverity NVARCHAR(20) NOT NULL,        -- Low, Medium, High, Critical
+    CurrentSeverity NVARCHAR(20) NOT NULL,
+    Status NVARCHAR(30) NOT NULL,              -- Open, Acknowledged, Investigating, Resolved, Dismissed, Reopened
+    EscalationLevel INT NOT NULL DEFAULT 0,
+    CurrentAssignee NVARCHAR(100) NULL,
+    CreatedAtUtc DATETIME2 NOT NULL,
+    LastOccurrenceAtUtc DATETIME2 NOT NULL,
+    AcknowledgedAtUtc DATETIME2 NULL,
+    ResolvedAtUtc DATETIME2 NULL,
+    ReopenedAtUtc DATETIME2 NULL
+);
+CREATE UNIQUE INDEX UX_Issues_CorrelationKey ON dbo.Issues(CorrelationKey);
+CREATE INDEX IX_Issues_Status_Severity ON dbo.Issues(Status, CurrentSeverity, LastOccurrenceAtUtc DESC);
+
+-- Occurrences (Immutable observation snapshots)
+CREATE TABLE dbo.Occurrences (
+    Id UNIQUEIDENTIFIER PRIMARY KEY,
+    IssueId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES dbo.Issues(Id),
+    OccurrenceNumber INT NOT NULL,
+    TimestampUtc DATETIME2 NOT NULL,
+    Module NVARCHAR(100) NOT NULL,
+    SourceTable NVARCHAR(100) NOT NULL,
+    RecordKeys NVARCHAR(250) NOT NULL,
+    DebitTotal DECIMAL(18,2) NULL,
+    CreditTotal DECIMAL(18,2) NULL,
+    VarianceDelta DECIMAL(18,2) NULL,
+    TraceString NVARCHAR(MAX) NULL
+);
+CREATE INDEX IX_Occurrences_IssueId ON dbo.Occurrences(IssueId, OccurrenceNumber);
+
+-- Investigation Notes (Append-only)
+CREATE TABLE dbo.InvestigationNotes (
+    Id UNIQUEIDENTIFIER PRIMARY KEY,
+    IssueId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES dbo.Issues(Id),
+    OfficerName NVARCHAR(100) NOT NULL,
+    NoteText NVARCHAR(MAX) NOT NULL,
+    CreatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+-- Remediation Records
+CREATE TABLE dbo.RemediationRecords (
+    Id UNIQUEIDENTIFIER PRIMARY KEY,
+    IssueId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES dbo.Issues(Id),
+    ActionCategory NVARCHAR(50) NOT NULL,      -- DataCorrection, ServiceRestart, ConfigAdjustment, CodeRemediation
+    SummaryDescription NVARCHAR(MAX) NOT NULL,
+    PerformedBy NVARCHAR(100) NOT NULL,
+    TimestampUtc DATETIME2 NOT NULL
+);
+
+-- Verification Records
+CREATE TABLE dbo.VerificationRecords (
+    Id UNIQUEIDENTIFIER PRIMARY KEY,
+    IssueId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES dbo.Issues(Id),
+    VerificationMethod NVARCHAR(50) NOT NULL,  -- AutomatedReRun, ManualQueryConfirmed
+    CleanPassed BIT NOT NULL,
+    EvidenceNotes NVARCHAR(MAX) NOT NULL,
+    VerifiedBy NVARCHAR(100) NOT NULL,
+    TimestampUtc DATETIME2 NOT NULL
+);
+
+-- Dismissal Records
+CREATE TABLE dbo.DismissalRecords (
+    Id UNIQUEIDENTIFIER PRIMARY KEY,
+    IssueId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES dbo.Issues(Id),
+    DismissalReason NVARCHAR(50) NOT NULL,     -- FalsePositive, AcceptedException, Duplicate
+    JustificationRationale NVARCHAR(MAX) NOT NULL,
+    DismissedBy NVARCHAR(100) NOT NULL,
+    TimestampUtc DATETIME2 NOT NULL
+);
+
+-- Seeded EDP Officer Accounts
+CREATE TABLE dbo.Officers (
+    Id UNIQUEIDENTIFIER PRIMARY KEY,
+    Username NVARCHAR(50) NOT NULL UNIQUE,
+    FullName NVARCHAR(100) NOT NULL,
+    PasswordHash NVARCHAR(255) NOT NULL,
+    Role NVARCHAR(30) NOT NULL,                -- EdpOfficer, SystemAnalyst, Lead
+    IsActive BIT NOT NULL DEFAULT 1
+);
+```
+
+---
+
+## 7. Verification & Implementation Checklist
+
+1. **Backend Minimal API Bootstrap:**
+   - [ ] Verify `PrIMA.Api` runs on .NET 8 Minimal APIs with Swagger and DbUp migrations running on startup.
+   - [ ] Confirm `POST /api/ingestion/telemetry` properly computes `CorrelationKey` and enforces BR-PRIMA-001 (deduplication) and BR-PRIMA-002 (auto-reopening).
+   - [ ] Confirm `MonitoringSupervisorWorker` transitions silent detectors and escalates unacknowledged issues.
+   - [ ] Confirm the Verification Gate: `POST /api/issues/{id}/resolve` fails with `409 Conflict` if no `CleanPassed` verification record exists.
+2. **Frontend Vue 3 Client:**
+   - [ ] Verify `openapi-typescript` generates `src/shared/types/api.generated.ts` cleanly from `/swagger/v1/swagger.json`.
+   - [ ] Confirm Axios interceptor attaches JWT Bearer token and maps RFC 7807 `ProblemDetails` (`422`, `409`, `401`) into `ApiError`.
+   - [ ] Confirm TanStack Query auto-polling triggers every 10s (dashboard) and 15s (detectors) with proper cache invalidation on mutations.
+   - [ ] Confirm VeeValidate + Zod form schemas validate inputs client-side and surface backend `422` field errors.
