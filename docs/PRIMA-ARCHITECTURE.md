@@ -21,7 +21,7 @@ PrIMA is a specialized operational monitoring and issue management application d
 4. **Zero-Infrastructure Real-Time Sync:**
    - The Vue frontend stays fresh using **TanStack Query automated polling** (every 10–15s for the active dashboard and feeds). No WebSocket or SignalR infrastructure required.
 5. **Lightweight Auth & Attribution:**
-   - Simple local accounts for EDP officers with JWT Bearer tokens. Every investigation note, remediation action, and verification is deterministically attributed to the authenticated officer.
+   - Simple local accounts for EDP officers with JWT Bearer tokens. Every investigation note, remediation action, and verification is deterministically attributed to the authenticated officer. Flat v1 operational authorization allows any active officer (`IsActive = 1`, across `EdpOfficer`, `SystemAnalyst`, `Lead`) full operational access, with `Role` used for audit attribution and session UI.
 6. **Single Database Schema (`dbo`):**
    - Clean relational SQL Server tables managed via embedded **DbUp SQL migration scripts** executed on startup.
 
@@ -37,10 +37,10 @@ PrIMA is a specialized operational monitoring and issue management application d
 | **Database** | Microsoft SQL Server | `2019+` | Enterprise persistence in hospital environments |
 | **DB Migrations** | DbUp (SQL Server) | `5.0+` | Plain `.sql` scripts executed on application bootstrap |
 | **Validation** | FluentValidation | `11.9+` | Request format validation at API boundary |
-| **Authentication** | JWT Bearer Authentication | `8.0+` | Lightweight token with Officer ID and Name |
+| **Authentication** | JWT Bearer Authentication | `8.0+` | 12-hour HS256 tokens with Officer ID, Username, FullName, and Role; passwords hashed via ASP.NET Core `PasswordHasher<object>` (PBKDF2) |
 | **Frontend Framework** | Vue 3 (Composition API) | `3.5+` | `<script setup lang="ts">`, high reactivity, low bundle size |
 | **Build Tool** | Vite | `6.0+` | Ultra-fast HMR and ESM bundling |
-| **CSS & Design System** | Tailwind CSS v4 + PrimeVue v4 | Tailwind `^4.0`, PrimeVue `^4.2` | Aura preset with custom Tailwind utility overrides |
+| **CSS & Design System** | Tailwind CSS v4 + PrimeVue v4 | Tailwind `^4.0`, PrimeVue `^4.2` | CSS-first Tailwind v4 (`@tailwindcss/vite`) + PrimeVue Aura preset |
 | **Server State** | TanStack Query for Vue | `5.60+` | Query caching, deduplication, auto-polling (10-15s), mutation invalidation |
 | **Client State** | Pinia | `2.2+` | Officer JWT session and active filter persistence only |
 | **Forms & Validation** | VeeValidate + Zod | VeeValidate `^4.14`, Zod `^3.23` | Schema-first client validation matching RFC 7807 problem details |
@@ -110,91 +110,105 @@ flowchart TD
 ### 4.1 Solution & Directory Structure
 
 ```text
-src/backend/PrIMA.Api/
-├── Program.cs                         # WebApplication entrypoint, middleware, and slice endpoint mapping
-├── appsettings.json                   # Connection string, JWT key, Ingestion API keys, cadence defaults
-├── Common/                            # Shared kernel primitives
-│   ├── Result.cs                      # Result<T> functional outcome pattern
-│   ├── DomainError.cs                 # Strongly typed error records (NotFound, Conflict, Validation)
-│   ├── ProblemDetailsExtensions.cs    # RFC 7807 ProblemDetails mapping
-│   ├── IEndpoint.cs                   # Endpoint scanning interface
-│   ├── ISqlConnectionFactory.cs       # SQL Server connection factory (Dapper)
-│   └── CurrentOfficer.cs              # Scoped officer identity from JWT claims
-│
-├── Migrations/                        # DbUp SQL migration scripts
-│   ├── MigrationRunner.cs             # Executes scripts at startup
-│   ├── Scripts/
-│   │   ├── 001_InitialSchema.sql      # Tables, indexes, foreign keys
-│   │   └── 002_SeedInitialUsers.sql   # Seeded EDP officer accounts
-│
-├── BackgroundServices/                # Periodic workers
-│   └── MonitoringSupervisorWorker.cs  # Silence checker & auto-escalation timer (every 60s)
-│
-├── Domain/                            # Pure domain layer (Zero external dependencies)
-│   ├── Detectors/
-│   │   ├── Detector.cs                # Detector Aggregate Root
-│   │   ├── InspectionRun.cs           # Inspection Run Entity
-│   │   ├── MonitoringScope.cs         # Value Object / Enum (DataIntegrity, Process, Sync, Infra)
-│   │   ├── DetectorHealth.cs          # Healthy, Silent, Failing
-│   │   └── IDetectorRepository.cs     # Write persistence interface
+src/
+├── backend/
+│   ├── PrIMA.Api/                         # Single ASP.NET Core Minimal API project
+│   │   ├── Program.cs                     # WebApplication entrypoint, middleware, and slice endpoint mapping
+│   │   ├── appsettings.json               # Connection string, JWT key, Ingestion API keys, cadence defaults
+│   │   ├── appsettings.Development.json   # Local development config (SeedDemoData=true)
+│   │   ├── Common/                        # Shared kernel primitives
+│   │   │   ├── Result.cs                  # Result<T> functional outcome pattern
+│   │   │   ├── DomainError.cs             # Strongly typed error records (NotFound, Conflict, Validation)
+│   │   │   ├── ProblemDetailsExtensions.cs # RFC 7807 ProblemDetails mapping
+│   │   │   ├── IEndpoint.cs               # Endpoint scanning interface
+│   │   │   ├── ISqlConnectionFactory.cs   # SQL Server connection factory (Dapper)
+│   │   │   └── CurrentOfficer.cs          # Scoped officer identity from JWT claims
+│   │   │
+│   │   ├── Migrations/                    # DbUp SQL migration scripts
+│   │   │   ├── MigrationRunner.cs         # Executes scripts at startup (EnsureDatabase)
+│   │   │   └── Scripts/
+│   │   │       ├── 001_InitialSchema.sql  # Tables, indexes, foreign keys
+│   │   │       └── 002_SeedInitialUsers.sql # Seeded baseline EDP officer accounts
+│   │   │
+│   │   ├── Seeding/                       # Development-only fixtures
+│   │   │   └── DevelopmentDemoDataSeeder.cs # Gated on IsDevelopment() && SeedDemoData
+│   │   │
+│   │   ├── BackgroundServices/            # Periodic workers (Stage 3+)
+│   │   │   └── MonitoringSupervisorWorker.cs # Silence checker & auto-escalation timer (Stage 3)
+│   │   │
+│   │   ├── Domain/                        # Pure domain layer (Zero external dependencies)
+│   │   │   ├── Detectors/
+│   │   │   │   ├── Detector.cs            # Detector Aggregate Root
+│   │   │   │   ├── InspectionRun.cs       # Inspection Run Entity
+│   │   │   │   ├── MonitoringScope.cs     # Value Object / Enum (DataIntegrity, Process, Sync, Infra)
+│   │   │   │   ├── DetectorHealth.cs      # Healthy, Silent, Failing
+│   │   │   │   └── IDetectorRepository.cs # Write persistence interface
+│   │   │   │
+│   │   │   └── Issues/
+│   │   │       ├── Issue.cs               # Issue Aggregate Root
+│   │   │       ├── CorrelationKey.cs      # Value Object (Deterministic key)
+│   │   │       ├── TelemetryEvidence.cs   # Value Object (Diagnostic snapshot)
+│   │   │       ├── Occurrence.cs          # Entity (Immutable observation, linked to InspectionRunId)
+│   │   │       ├── InvestigationNote.cs   # Entity (Chronological notes)
+│   │   │       ├── RemediationRecord.cs   # Value Object (Action category + description)
+│   │   │       ├── VerificationRecord.cs  # Value Object (Method + CleanPassed result)
+│   │   │       ├── DismissalRecord.cs     # Value Object (Reason + Rationale)
+│   │   │       ├── IssueStatus.cs         # Open, Acknowledged, Investigating, Resolved, Dismissed, Reopened
+│   │   │       ├── IssueSeverity.cs       # Low, Medium, High, Critical
+│   │   │       ├── SeverityRank.cs        # TINYINT rank (Critical=4, High=3, Medium=2, Low=1)
+│   │   │       ├── IssueErrors.cs         # Domain error factory
+│   │   │       └── IIssueRepository.cs    # Write persistence interface
+│   │   │
+│   │   ├── Infrastructure/                # Persistence & external communication
+│   │   │   ├── Persistence/
+│   │   │   │   ├── SqlConnectionFactory.cs # SqlConnection provider
+│   │   │   │   ├── DetectorRepository.cs  # Dapper implementation of IDetectorRepository
+│   │   │   │   └── IssueRepository.cs     # Dapper implementation of IIssueRepository
+│   │   │   └── Webhooks/
+│   │   │       └── DetectorWebhookClient.cs # HTTP client to trigger on-demand detector runs
+│   │   │
+│   │   └── Features/                      # Vertical Slices (grouped by operational capability)
+│   │       ├── Auth/
+│   │       │   ├── LoginEndpoint.cs
+│   │       │   ├── LoginRequest.cs
+│   │       │   └── LoginResponse.cs
+│   │       │
+│   │       ├── Ingestion/                 # External detector telemetry intake
+│   │       │   ├── IngestTelemetryEndpoint.cs # POST /api/ingestion/telemetry
+│   │       │   ├── IngestTelemetryRequest.cs  # findings[] batch payload
+│   │       │   ├── IngestTelemetryResponse.cs # results[] batch response
+│   │       │   ├── IngestTelemetryValidator.cs
+│   │       │   └── IngestTelemetryHandler.cs  # Deduplication, Occurrence appending, or Issue creation
+│   │       │
+│   │       ├── Issues/                    # Operational issue management
+│   │       │   ├── GetDashboardFeed/      # Query: S-01 Issue Feed & Summary Counters (WIB boundary)
+│   │       │   ├── GetIssueById/          # Query: S-02 Full issue details + timeline (Stage 2)
+│   │       │   ├── AcknowledgeIssue/      # Command: Open -> Acknowledged (Stage 2)
+│   │       │   ├── AssignIssue/           # Command: Acknowledge + Assign / Self-assign (Stage 2)
+│   │       │   ├── AddInvestigationNote/  # Command: Append note (Stage 2)
+│   │       │   ├── RecordRemediation/     # Command: Record action taken (M-02, Stage 2)
+│   │       │   ├── TriggerVerificationRun/ # Command: Call detector webhook to re-verify (D-2, Stage 2)
+│   │       │   ├── RecordManualVerification/ # Command: Manual query result record (M-03, Stage 2)
+│   │       │   ├── ResolveIssue/          # Command: Transition to Resolved (Stage 2)
+│   │       │   └── DismissIssue/          # Command: Transition to Dismissed with rationale (M-01, Stage 2)
+│   │       │
+│   │       ├── Detectors/                 # Detector portfolio management (Stage 3)
+│   │       │   ├── GetDetectorList/       # Query: S-03 list + health status
+│   │       │   ├── GetDetectorById/       # Query: S-04 detail + recent runs
+│   │       │   ├── RegisterDetector/      # Command: S-05 create
+│   │       │   ├── UpdateDetector/        # Command: S-05 update config
+│   │       │   ├── ToggleDetectorStatus/  # Command: Active <-> Paused / Retire
+│   │       │   └── TriggerManualRun/      # Command: E-7 on-demand execution
+│   │       │
+│   │       └── History/                   # Historical reports & retrospectives (Stage 4)
+│   │           ├── GetHistoricalIssues/   # Query: S-07 filterable history
+│   │           └── GetReliabilityKpi/     # Query: S-07 summary KPIs (pass rates, MTTR)
 │   │
-│   └── Issues/
-│       ├── Issue.cs                   # Issue Aggregate Root
-│       ├── CorrelationKey.cs          # Value Object (Deterministic key)
-│       ├── TelemetryEvidence.cs       # Value Object (Diagnostic snapshot)
-│       ├── Occurrence.cs              # Entity (Immutable observation)
-│       ├── InvestigationNote.cs       # Entity (Chronological notes)
-│       ├── RemediationRecord.cs       # Value Object (Action category + description)
-│       ├── VerificationRecord.cs      # Value Object (Method + CleanPassed result)
-│       ├── DismissalRecord.cs         # Value Object (Reason + Rationale)
-│       ├── IssueStatus.cs             # Open, Acknowledged, Investigating, Resolved, Dismissed, Reopened
-│       ├── IssueSeverity.cs           # Low, Medium, High, Critical
-│       ├── IssueErrors.cs             # Domain error factory
-│       └── IIssueRepository.cs        # Write persistence interface
+│   └── PrIMA.Api.Tests/                   # Automated xUnit test suite (Unit & Integration tests)
 │
-├── Infrastructure/                    # Persistence & external communication
-│   ├── Persistence/
-│   │   ├── SqlConnectionFactory.cs    # SqlConnection provider
-│   │   ├── DetectorRepository.cs      # Dapper implementation of IDetectorRepository
-│   │   └── IssueRepository.cs         # Dapper implementation of IIssueRepository
-│   └── Webhooks/
-│       └── DetectorWebhookClient.cs   # HTTP client to trigger on-demand detector runs
-│
-└── Features/                          # Vertical Slices (grouped by operational capability)
-    ├── Auth/
-    │   ├── LoginEndpoint.cs
-    │   ├── LoginRequest.cs
-    │   └── LoginResponse.cs
-    │
-    ├── Ingestion/                     # External detector telemetry intake
-    │   ├── IngestTelemetryEndpoint.cs # POST /api/ingestion/telemetry
-    │   ├── IngestTelemetryRequest.cs
-    │   ├── IngestTelemetryValidator.cs
-    │   └── IngestTelemetryHandler.cs  # Deduplication, Occurrence appending, or Issue creation
-    │
-    ├── Issues/                        # Operational issue management
-    │   ├── GetDashboardFeed/          # Query: S-01 Issue Feed & Summary Counters
-    │   ├── GetIssueById/              # Query: S-02 Full issue details + timeline
-    │   ├── AcknowledgeIssue/          # Command: Open -> Acknowledged
-    │   ├── AssignIssue/               # Command: Acknowledge + Assign / Self-assign ("Take It")
-    │   ├── AddInvestigationNote/      # Command: Append note
-    │   ├── RecordRemediation/         # Command: Record action taken (M-02)
-    │   ├── TriggerVerificationRun/    # Command: Call detector webhook to re-verify (D-2)
-    │   ├── RecordManualVerification/  # Command: Manual query result record (M-03)
-    │   ├── ResolveIssue/              # Command: Transition to Resolved (enforces Verification Gate)
-    │   └── DismissIssue/              # Command: Transition to Dismissed with rationale (M-01)
-    │
-    ├── Detectors/                     # Detector portfolio management
-    │   ├── GetDetectorList/           # Query: S-03 list + health status
-    │   ├── GetDetectorById/           # Query: S-04 detail + recent runs
-    │   ├── RegisterDetector/          # Command: S-05 create
-    │   ├── UpdateDetector/            # Command: S-05 update config
-    │   ├── ToggleDetectorStatus/      # Command: Active <-> Paused / Retire
-    │   └── TriggerManualRun/          # Command: E-7 on-demand execution
-    │
-    └── History/                       # Historical reports & retrospectives
-        ├── GetHistoricalIssues/       # Query: S-07 filterable history
-        └── GetReliabilityKpi/         # Query: S-07 summary KPIs (pass rates, MTTR)
+├── frontend/                              # Vue 3 Single Page Application (features/auth, features/dashboard)
+└── tools/
+    └── telemetry-simulator/               # Zero-dependency Node.js CLI simulator (simulate.mjs)
 ```
 
 ---
@@ -217,13 +231,22 @@ public sealed class Issue
     public MonitoringScope Scope { get; private set; }
     public IssueSeverity BaseSeverity { get; private set; }
     public IssueSeverity CurrentSeverity { get; private set; }
+    public byte SeverityRank => CurrentSeverity switch
+    {
+        IssueSeverity.Critical => 4,
+        IssueSeverity.High => 3,
+        IssueSeverity.Medium => 2,
+        _ => 1
+    };
     public IssueStatus Status { get; private set; }
     public int EscalationLevel { get; private set; }
+    public int OccurrenceCount { get; private set; } = 1;
     public string? CurrentAssignee { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
     public DateTime LastOccurrenceAtUtc { get; private set; }
     public DateTime? AcknowledgedAtUtc { get; private set; }
     public DateTime? ResolvedAtUtc { get; private set; }
+    public DateTime? DismissedAtUtc { get; private set; }
     public DateTime? ReopenedAtUtc { get; private set; }
 
     private readonly List<Occurrence> _occurrences = [];
@@ -247,6 +270,7 @@ public sealed class Issue
         CorrelationKey correlationKey,
         IssueSeverity baseSeverity,
         TelemetryEvidence evidence,
+        Guid inspectionRunId,
         DateTime discoveredAtUtc)
     {
         var issue = new Issue
@@ -261,32 +285,37 @@ public sealed class Issue
             CurrentSeverity = baseSeverity,
             Status = IssueStatus.Open,
             EscalationLevel = 0,
+            OccurrenceCount = 1,
             CreatedAtUtc = discoveredAtUtc,
             LastOccurrenceAtUtc = discoveredAtUtc
         };
 
-        issue._occurrences.Add(new Occurrence(Guid.NewGuid(), issue.Id, 1, discoveredAtUtc, evidence));
+        issue._occurrences.Add(new Occurrence(Guid.NewGuid(), issue.Id, inspectionRunId, 1, discoveredAtUtc, evidence));
         return issue;
     }
 
     // BR-PRIMA-001 & BR-PRIMA-002: Ingest recurring finding
-    public void RecordRecurringOccurrence(TelemetryEvidence evidence, DateTime occurrenceTimeUtc)
+    public void RecordRecurringOccurrence(TelemetryEvidence evidence, Guid inspectionRunId, DateTime occurrenceTimeUtc)
     {
-        var nextNumber = _occurrences.Count + 1;
-        _occurrences.Add(new Occurrence(Guid.NewGuid(), Id, nextNumber, occurrenceTimeUtc, evidence));
+        OccurrenceCount++;
+        var nextNumber = OccurrenceCount;
+        _occurrences.Add(new Occurrence(Guid.NewGuid(), Id, inspectionRunId, nextNumber, occurrenceTimeUtc, evidence));
         LastOccurrenceAtUtc = occurrenceTimeUtc;
 
-        // BR-PRIMA-002: Reopen if previously closed
+        // BR-PRIMA-002: Reopen if previously closed & clear prior audit state
         if (Status is IssueStatus.Resolved or IssueStatus.Dismissed)
         {
             Status = IssueStatus.Reopened;
             ReopenedAtUtc = occurrenceTimeUtc;
+            CurrentAssignee = null;
+            AcknowledgedAtUtc = null;
+            ResolvedAtUtc = null;
+            DismissedAtUtc = null;
             Dismissal = null;
-            LatestVerification = null; // Prior verification invalid
+            LatestVerification = null; // Prior verification invalid; SQL repository sets IsSuperseded = 1 on prior governance rows
         }
 
-        // BR-PRIMA-003: Check recurrence threshold escalation
-        CheckRecurrenceEscalation();
+        // BR-PRIMA-003: Dynamic severity escalation deferred to Stage 3 (CheckRecurrenceEscalation)
     }
 
     // Acknowledge & Assign ("Take It")
@@ -396,41 +425,65 @@ Detectors execute externally and post inspection results to:
   "outcome": "FindingDiscovered",
   "durationMs": 1420,
   "failureReason": null,
-  "finding": {
-    "targetEntityReference": "INV-2026-11-0042",
-    "title": "Unbalanced Journal: Billing Invoice INV-2026-11-0042",
-    "baseSeverity": "High",
-    "evidence": {
-      "module": "Billing",
-      "sourceTable": "acc_journal_entries",
-      "recordKeys": "invoice_id=984321, batch_no=B20261120-1",
-      "debitTotal": 1500000.00,
-      "creditTotal": 1450000.00,
-      "varianceDelta": 50000.00,
-      "trace": "Debit lines sum to 1,500,000 but credit lines sum to 1,450,000. Variance delta of 50,000 unallocated."
+  "findings": [
+    {
+      "targetEntityReference": "INV-2026-11-0042",
+      "title": "Unbalanced Journal: Billing Invoice INV-2026-11-0042",
+      "baseSeverity": "High",
+      "evidence": {
+        "module": "Billing",
+        "sourceTable": "acc_journal_entries",
+        "recordKeys": "invoice_id=984321, batch_no=B20261120-1",
+        "debitTotal": 1500000.00,
+        "creditTotal": 1450000.00,
+        "varianceDelta": 50000.00,
+        "trace": "Debit lines sum to 1,500,000 but credit lines sum to 1,450,000. Variance delta of 50,000 unallocated."
+      }
     }
-  }
+  ]
 }
 ```
 
 #### Ingestion Processing Pipeline
-1. **Authenticate Detector:** Validate `X-Detector-API-Key` matches configured secret.
-2. **Record Inspection Run:** Persist the execution telemetry record in `dbo.InspectionRuns`.
-3. **Update Detector Health:** Set `LastRunAtUtc`, `LastHealthyHeartbeatUtc`, and status = `Healthy`.
-4. **Evaluate Finding:**
-   - If `outcome == "Passed"`: End pipeline (return `200 OK`).
-   - If `outcome == "FindingDiscovered"`:
-     - Compute `CorrelationKey = $"{DetectorId}:{TargetEntityReference}"`.
-     - Query `dbo.Issues` for existing active/historical issue by `CorrelationKey`.
-     - **If Match Found:** Load `Issue` aggregate, invoke `issue.RecordRecurringOccurrence(...)`, and persist changes via `IIssueRepository`.
-     - **If No Match:** Instantiate new `Issue` aggregate via `Issue.Create(...)` and insert into `dbo.Issues` and `dbo.Occurrences`.
-5. **Return Status:** `200 OK` with correlation key and issue ID.
+1. **Authenticate Detector:** Validate `X-Detector-API-Key` using constant-time byte comparison (`FixedTimeEquals`) against configured `Ingestion:ApiKeys` array. Return `401 Unauthorized` on failure.
+2. **Validate Detector State:** Query `dbo.Detectors` by `detectorId`:
+   - If not found: return `404 Not Found` (RFC 7807).
+   - If `AdminStatus` is `Paused` or `Retired`: return `409 Conflict` (RFC 7807) without recording telemetry.
+3. **Validate Outcome & Payload:**
+   - In Stage 1, reject `outcome == "ExecutionFailed"` with `422 Unprocessable Entity` (deferred to Stage 3 infrastructure synthesis).
+   - If `outcome == "Passed"`: `findings` must be empty or null.
+   - If `outcome == "FindingDiscovered"`: `findings` must contain `>= 1` items.
+   - Reject duplicate `targetEntityReference` (case-insensitive after trimming) within the same batch with `422 Unprocessable Entity`.
+4. **Atomic Transaction (Run + Findings):** Inside a single SQL Server database transaction:
+   - Persist execution telemetry record in `dbo.InspectionRuns`.
+   - Update detector liveness: set `LastRunAtUtc`, `LastHealthyHeartbeatUtc`, and status = `Healthy`.
+   - For each finding in `findings[]`:
+     - Compute canonical `CorrelationKey = $"{DetectorId:D}:{TargetEntityReference.Trim().ToUpperInvariant()}"`.
+     - Query `dbo.Issues` with `(UPDLOCK, HOLDLOCK)` by `CorrelationKey`.
+     - **If Active Match Found** (`Open`, `Acknowledged`, `Investigating`, `Reopened`):
+       - Load `Issue` aggregate, call `issue.RecordRecurringOccurrence(evidence, inspectionRunId, executionTimestampUtc)`.
+       - Update `dbo.Issues` (`OccurrenceCount`, `LastOccurrenceAtUtc`), insert `dbo.Occurrences`.
+       - Set finding result `action = "Appended"`.
+     - **If Closed Match Found** (`Resolved`, `Dismissed`):
+       - Load `Issue` aggregate, call `issue.RecordRecurringOccurrence(...)` (`BR-PRIMA-002`).
+       - Update `dbo.Issues` (`Status = Reopened`, reset assignee and resolution timestamps).
+       - Mark prior `dbo.RemediationRecords`, `dbo.VerificationRecords`, and `dbo.DismissalRecords` as `IsSuperseded = 1`.
+       - Insert `dbo.Occurrences`.
+       - Set finding result `action = "Reopened"`.
+     - **If No Match Found**:
+       - Instantiate new `Issue` aggregate via `Issue.Create(...)`.
+       - Insert into `dbo.Issues` (with `SeverityRank`) and `dbo.Occurrences` (`OccurrenceNumber = 1`).
+       - Set finding result `action = "Created"`.
+5. **Return Status:** `200 OK` with `inspectionRunId`, `detectorId`, `outcome`, `processedFindingsCount`, and `results[]` array.
 
 ---
 
 ### 4.4 Automated Background Supervision (`MonitoringSupervisorWorker`)
 
-An ASP.NET Core `BackgroundService` runs on a 60-second loop:
+> [!NOTE]
+> Autonomous silence supervision and background SLA escalation are registered starting in **Stage 3** per the Development Roadmap (`docs/PRIMA-DEVELOPMENT-ROADMAP.md`). In Stage 1, no background supervisor worker is registered.
+
+An ASP.NET Core `BackgroundService` runs on a 60-second loop (Stage 3+):
 1. **Silence Detection (BR-PRIMA-010 & BR-PRIMA-005):**
    - Query all active detectors where `(UtcNow - LastHeartbeatAtUtc) > (ExpectedCadenceSeconds * 2)`.
    - Update detector health to `Silent`.
@@ -488,22 +541,23 @@ flowchart TD
 src/frontend/
 ├── index.html
 ├── package.json
-├── vite.config.ts
-├── tailwind.config.ts
+├── vite.config.ts                     # Configured with @tailwindcss/vite plugin & /api proxy
 │
 ├── src/
 │   ├── main.ts                       # App bootstrap, Pinia, PrimeVue, TanStack Query provider
 │   ├── App.vue                       # Root component & router-view
+│   ├── assets/
+│   │   └── main.css                  # CSS-first Tailwind entrypoint (@import "tailwindcss";)
 │   │
 │   ├── app/                          # Application Infrastructure Layer
 │   │   ├── config/
 │   │   │   └── primevue.ts           # PrimeVue v4 preset & PassThrough config
 │   │   ├── router/
-│   │   │   └── index.ts              # Route hierarchy & JWT auth guards
+│   │   │   └── index.ts              # Route hierarchy & JWT auth guards (/login, /)
 │   │   ├── stores/
-│   │   │   └── auth.store.ts         # Officer session & JWT token store
+│   │   │   └── auth.store.ts         # Officer session & JWT token store (localStorage persistence)
 │   │   └── layouts/
-│   │       ├── AppLayout.vue         # Authenticated shell container
+│   │       ├── AppLayout.vue         # Authenticated shell container (Dashboard active, Detectors/History disabled)
 │   │       └── AuthLayout.vue        # Unauthenticated shell container
 │   │
 │   ├── shared/                       # Domain-Agnostic Kernel
@@ -517,11 +571,11 @@ src/frontend/
 │   │       └── dateUtils.ts          # date-fns ISO-8601 & relative time utilities
 │   │
 │   └── features/                     # Vertical Feature Slices
-│       ├── auth/                     # Officer authentication slice
-│       ├── dashboard/                # Active issue feed & summary queries (10s polling)
-│       ├── issues/                   # Issue detail queries, lifecycle mutations, Zod form schemas
-│       ├── detectors/                # Detector CRUD, status mutations, run logs (15s polling)
-│       └── history/                  # Historical issue & reliability KPI queries
+│       ├── auth/                     # Officer authentication slice (S-00)
+│       ├── dashboard/                # Active issue feed & summary queries (S-01, 10s polling)
+│       ├── issues/                   # Issue detail queries, lifecycle mutations, Zod form schemas (Stage 2)
+│       ├── detectors/                # Detector CRUD, status mutations, run logs (Stage 3)
+│       └── history/                  # Historical issue & reliability KPI queries (Stage 4)
 ```
 
 Each feature slice follows the standard internal anatomy:
@@ -580,7 +634,8 @@ CREATE TABLE dbo.Detectors (
     HealthStatus NVARCHAR(30) NOT NULL,        -- Healthy, Silent, Failing
     LastRunAtUtc DATETIME2 NULL,
     LastHealthyHeartbeatUtc DATETIME2 NULL,
-    CreatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+    CreatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT UQ_Detectors_Name UNIQUE (Name)
 );
 
 -- Inspection Run Telemetry Log
@@ -606,33 +661,38 @@ CREATE TABLE dbo.Issues (
     Scope NVARCHAR(50) NOT NULL,
     BaseSeverity NVARCHAR(20) NOT NULL,        -- Low, Medium, High, Critical
     CurrentSeverity NVARCHAR(20) NOT NULL,
+    SeverityRank TINYINT NOT NULL,             -- Critical=4, High=3, Medium=2, Low=1
     Status NVARCHAR(30) NOT NULL,              -- Open, Acknowledged, Investigating, Resolved, Dismissed, Reopened
     EscalationLevel INT NOT NULL DEFAULT 0,
+    OccurrenceCount INT NOT NULL DEFAULT 1,
     CurrentAssignee NVARCHAR(100) NULL,
     CreatedAtUtc DATETIME2 NOT NULL,
     LastOccurrenceAtUtc DATETIME2 NOT NULL,
     AcknowledgedAtUtc DATETIME2 NULL,
     ResolvedAtUtc DATETIME2 NULL,
+    DismissedAtUtc DATETIME2 NULL,
     ReopenedAtUtc DATETIME2 NULL
 );
 CREATE UNIQUE INDEX UX_Issues_CorrelationKey ON dbo.Issues(CorrelationKey);
-CREATE INDEX IX_Issues_Status_Severity ON dbo.Issues(Status, CurrentSeverity, LastOccurrenceAtUtc DESC);
+CREATE INDEX IX_Issues_Status_SeverityRank ON dbo.Issues(Status, SeverityRank DESC, LastOccurrenceAtUtc DESC);
 
 -- Occurrences (Immutable observation snapshots)
 CREATE TABLE dbo.Occurrences (
     Id UNIQUEIDENTIFIER PRIMARY KEY,
     IssueId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES dbo.Issues(Id),
+    InspectionRunId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES dbo.InspectionRuns(Id),
     OccurrenceNumber INT NOT NULL,
     TimestampUtc DATETIME2 NOT NULL,
     Module NVARCHAR(100) NOT NULL,
-    SourceTable NVARCHAR(100) NOT NULL,
-    RecordKeys NVARCHAR(250) NOT NULL,
+    SourceTable NVARCHAR(100) NULL,
+    RecordKeys NVARCHAR(500) NULL,
     DebitTotal DECIMAL(18,2) NULL,
     CreditTotal DECIMAL(18,2) NULL,
     VarianceDelta DECIMAL(18,2) NULL,
     TraceString NVARCHAR(MAX) NULL
 );
 CREATE INDEX IX_Occurrences_IssueId ON dbo.Occurrences(IssueId, OccurrenceNumber);
+CREATE INDEX IX_Occurrences_InspectionRunId ON dbo.Occurrences(InspectionRunId);
 
 -- Investigation Notes (Append-only)
 CREATE TABLE dbo.InvestigationNotes (
@@ -647,11 +707,13 @@ CREATE TABLE dbo.InvestigationNotes (
 CREATE TABLE dbo.RemediationRecords (
     Id UNIQUEIDENTIFIER PRIMARY KEY,
     IssueId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES dbo.Issues(Id),
-    ActionCategory NVARCHAR(50) NOT NULL,      -- DataCorrection, ServiceRestart, ConfigAdjustment, CodeRemediation
+    ActionCategory NVARCHAR(50) NOT NULL,      -- DataCorrection, ServiceRestart, ConfigurationAdjustment, CodeRemediationRequested
     SummaryDescription NVARCHAR(MAX) NOT NULL,
     PerformedBy NVARCHAR(100) NOT NULL,
-    TimestampUtc DATETIME2 NOT NULL
+    TimestampUtc DATETIME2 NOT NULL,
+    IsSuperseded BIT NOT NULL DEFAULT 0
 );
+CREATE INDEX IX_RemediationRecords_IssueId ON dbo.RemediationRecords(IssueId);
 
 -- Verification Records
 CREATE TABLE dbo.VerificationRecords (
@@ -661,18 +723,22 @@ CREATE TABLE dbo.VerificationRecords (
     CleanPassed BIT NOT NULL,
     EvidenceNotes NVARCHAR(MAX) NOT NULL,
     VerifiedBy NVARCHAR(100) NOT NULL,
-    TimestampUtc DATETIME2 NOT NULL
+    TimestampUtc DATETIME2 NOT NULL,
+    IsSuperseded BIT NOT NULL DEFAULT 0
 );
+CREATE INDEX IX_VerificationRecords_IssueId ON dbo.VerificationRecords(IssueId);
 
 -- Dismissal Records
 CREATE TABLE dbo.DismissalRecords (
     Id UNIQUEIDENTIFIER PRIMARY KEY,
     IssueId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES dbo.Issues(Id),
-    DismissalReason NVARCHAR(50) NOT NULL,     -- FalsePositive, AcceptedException, Duplicate
+    DismissalReason NVARCHAR(50) NOT NULL,     -- FalsePositive, AcceptedOperationalException, DuplicateManualReport
     JustificationRationale NVARCHAR(MAX) NOT NULL,
     DismissedBy NVARCHAR(100) NOT NULL,
-    TimestampUtc DATETIME2 NOT NULL
+    TimestampUtc DATETIME2 NOT NULL,
+    IsSuperseded BIT NOT NULL DEFAULT 0
 );
+CREATE INDEX IX_DismissalRecords_IssueId ON dbo.DismissalRecords(IssueId);
 
 -- Seeded EDP Officer Accounts
 CREATE TABLE dbo.Officers (
@@ -689,13 +755,18 @@ CREATE TABLE dbo.Officers (
 
 ## 7. Verification & Implementation Checklist
 
-1. **Backend Minimal API Bootstrap:**
-   - [ ] Verify `PrIMA.Api` runs on .NET 8 Minimal APIs with Swagger and DbUp migrations running on startup.
-   - [ ] Confirm `POST /api/ingestion/telemetry` properly computes `CorrelationKey` and enforces BR-PRIMA-001 (deduplication) and BR-PRIMA-002 (auto-reopening).
-   - [ ] Confirm `MonitoringSupervisorWorker` transitions silent detectors and escalates unacknowledged issues.
-   - [ ] Confirm the Verification Gate: `POST /api/issues/{id}/resolve` fails with `409 Conflict` if no `CleanPassed` verification record exists.
-2. **Frontend Vue 3 Client:**
+1. **Backend Minimal API Bootstrap (Stage 1):**
+   - [ ] Verify `PrIMA.Api` runs on .NET 8 Minimal APIs with Swagger (`/swagger/v1/swagger.json`) and DbUp migrations running on startup with `EnsureDatabase`.
+   - [ ] Confirm baseline officer seeding in `002_SeedInitialUsers.sql` and development demo data seeder gated on `IsDevelopment() && SeedDemoData`.
+   - [ ] Confirm `POST /api/auth/login` verifies PBKDF2 hash, issues 12h HS256 JWT, and enforces `IsActive = 1`.
+   - [ ] Confirm `POST /api/ingestion/telemetry` properly validates `X-Detector-API-Key`, detector status (404/409), processes `findings[]` batch in an atomic transaction, computes canonical `CorrelationKey`, and enforces BR-PRIMA-001 (deduplication) and BR-PRIMA-002 (auto-reopening with `IsSuperseded = 1`).
+   - [ ] Confirm `GET /api/issues/dashboard-feed` projects global summary counters with `OperationalTimeZone` (`WIB`) midnight calculation and returns active issues ordered by `SeverityRank DESC, LastOccurrenceAtUtc DESC`.
+2. **Frontend Vue 3 Client (Stage 1):**
    - [ ] Verify `openapi-typescript` generates `src/shared/types/api.generated.ts` cleanly from `/swagger/v1/swagger.json`.
-   - [ ] Confirm Axios interceptor attaches JWT Bearer token and maps RFC 7807 `ProblemDetails` (`422`, `409`, `401`) into `ApiError`.
-   - [ ] Confirm TanStack Query auto-polling triggers every 10s (dashboard) and 15s (detectors) with proper cache invalidation on mutations.
-   - [ ] Confirm VeeValidate + Zod form schemas validate inputs client-side and surface backend `422` field errors.
+   - [ ] Confirm Axios interceptor attaches JWT Bearer token, stores session in `localStorage` via `auth.store.ts`, and maps RFC 7807 `ProblemDetails` (`422`, `409`, `401`) into `ApiError`.
+   - [ ] Confirm TanStack Query auto-polling triggers every 10s on `S-01` without flashing full-page skeletons on background refetch.
+   - [ ] Confirm Stage 1 navigation boundaries: `Dashboard` active, `Detectors` and `History` visually disabled with tooltips, `Resolved Today` tile non-clickable, and feed rows non-navigating.
+3. **Downstream Stages (Stage 2+):**
+   - [ ] Confirm the Verification Gate: `POST /api/issues/{id}/resolve` fails with `409 Conflict` if no `CleanPassed` verification record exists (Stage 2).
+   - [ ] Confirm `MonitoringSupervisorWorker` transitions silent detectors and escalates unacknowledged issues (Stage 3).
+   - [ ] Confirm `ExecutionFailed` infrastructure anomaly synthesis (Stage 3).
