@@ -8,7 +8,19 @@ using PrIMA.Api.Domain.Detectors;
 using PrIMA.Api.Domain.Issues;
 using PrIMA.Api.Features.Auth;
 using PrIMA.Api.Features.Ingestion;
+using PrIMA.Api.Features.Issues;
+using PrIMA.Api.Features.Issues.AcknowledgeIssue;
+using PrIMA.Api.Features.Issues.AddNote;
+using PrIMA.Api.Features.Issues.AssignIssue;
+using PrIMA.Api.Features.Issues.DismissIssue;
 using PrIMA.Api.Features.Issues.GetDashboardFeed;
+using PrIMA.Api.Features.Issues.GetIssueById;
+using PrIMA.Api.Features.Issues.RecordManualVerification;
+using PrIMA.Api.Features.Issues.RecordRemediation;
+using PrIMA.Api.Features.Issues.ResolveIssue;
+using PrIMA.Api.Features.Issues.StartInvestigation;
+using PrIMA.Api.Features.Issues.TakeIt;
+using PrIMA.Api.Features.Officers;
 using PrIMA.Api.Infrastructure.Persistence;
 using PrIMA.Api.Migrations;
 using PrIMA.Api.Seeding;
@@ -57,6 +69,9 @@ builder.Services.AddCors(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
+    options.SupportNonNullableReferenceTypes();
+    options.SchemaFilter<RequireNonNullablePropertiesSchemaFilter>();
+
     options.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "PrIMA API",
@@ -116,6 +131,17 @@ builder.Services.AddScoped<ApiKeyEndpointFilter>();
 builder.Services.AddScoped<LoginHandler>();
 builder.Services.AddScoped<IngestTelemetryHandler>();
 builder.Services.AddScoped<GetDashboardFeedHandler>();
+builder.Services.AddScoped<GetOfficersHandler>();
+builder.Services.AddScoped<GetIssueByIdHandler>();
+builder.Services.AddScoped<TakeItHandler>();
+builder.Services.AddScoped<AssignIssueHandler>();
+builder.Services.AddScoped<AcknowledgeIssueHandler>();
+builder.Services.AddScoped<StartInvestigationHandler>();
+builder.Services.AddScoped<AddNoteHandler>();
+builder.Services.AddScoped<RecordRemediationHandler>();
+builder.Services.AddScoped<RecordManualVerificationHandler>();
+builder.Services.AddScoped<ResolveIssueHandler>();
+builder.Services.AddScoped<DismissIssueHandler>();
 builder.Services.AddScoped<DevelopmentDemoDataSeeder>();
 
 var app = builder.Build();
@@ -152,6 +178,8 @@ app.MapGet("/api/health", () => Results.Ok(new { status = "Healthy", timestampUt
 app.MapAuthEndpoints();
 app.MapIngestTelemetryEndpoint();
 app.MapGetDashboardFeedEndpoint();
+app.MapOfficerEndpoints();
+app.MapIssueLifecycleEndpoints();
 
 // Execute Database Migrations
 var connectionString = app.Configuration.GetConnectionString("PrIMADb")
@@ -170,3 +198,19 @@ if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("SeedDem
 app.Run();
 
 public partial class Program { }
+
+public sealed class RequireNonNullablePropertiesSchemaFilter : Swashbuckle.AspNetCore.SwaggerGen.ISchemaFilter
+{
+    public void Apply(OpenApiSchema schema, Swashbuckle.AspNetCore.SwaggerGen.SchemaFilterContext context)
+    {
+        if (schema.Properties == null) return;
+
+        foreach (var property in schema.Properties)
+        {
+            if (!property.Value.Nullable && !schema.Required.Contains(property.Key))
+            {
+                schema.Required.Add(property.Key);
+            }
+        }
+    }
+}

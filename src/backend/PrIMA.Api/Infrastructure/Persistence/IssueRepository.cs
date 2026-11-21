@@ -337,6 +337,444 @@ public sealed class IssueRepository : IIssueRepository
         });
     }
 
+    public Task TakeItAsync(
+        Guid issueId,
+        string officerName,
+        DateTime timestampUtc,
+        IDbConnection? conn = null,
+        IDbTransaction? tx = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(officerName);
+
+        const string sql = """
+            UPDATE dbo.Issues
+            SET Status = 'Investigating',
+                CurrentAssignee = @OfficerName,
+                AcknowledgedAtUtc = COALESCE(AcknowledgedAtUtc, @TimestampUtc)
+            WHERE Id = @IssueId;
+            """;
+
+        return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
+            connection.ExecuteAsync(new CommandDefinition(sql, new
+            {
+                IssueId = issueId,
+                OfficerName = officerName.Trim(),
+                TimestampUtc = timestampUtc
+            }, transaction, cancellationToken: cancellationToken)));
+    }
+
+    public Task AssignAsync(
+        Guid issueId,
+        string officerName,
+        IssueStatus newStatus,
+        DateTime timestampUtc,
+        IDbConnection? conn = null,
+        IDbTransaction? tx = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(officerName);
+
+        const string sql = """
+            UPDATE dbo.Issues
+            SET CurrentAssignee = @OfficerName,
+                Status = @Status,
+                AcknowledgedAtUtc = CASE
+                    WHEN @Status = 'Acknowledged' AND AcknowledgedAtUtc IS NULL THEN @TimestampUtc
+                    ELSE AcknowledgedAtUtc
+                END
+            WHERE Id = @IssueId;
+            """;
+
+        return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
+            connection.ExecuteAsync(new CommandDefinition(sql, new
+            {
+                IssueId = issueId,
+                OfficerName = officerName.Trim(),
+                Status = newStatus.ToString(),
+                TimestampUtc = timestampUtc
+            }, transaction, cancellationToken: cancellationToken)));
+    }
+
+    public Task AcknowledgeAsync(
+        Guid issueId,
+        string officerName,
+        DateTime timestampUtc,
+        IDbConnection? conn = null,
+        IDbTransaction? tx = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(officerName);
+
+        const string sql = """
+            UPDATE dbo.Issues
+            SET Status = 'Acknowledged',
+                CurrentAssignee = COALESCE(CurrentAssignee, @OfficerName),
+                AcknowledgedAtUtc = @TimestampUtc
+            WHERE Id = @IssueId;
+            """;
+
+        return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
+            connection.ExecuteAsync(new CommandDefinition(sql, new
+            {
+                IssueId = issueId,
+                OfficerName = officerName.Trim(),
+                TimestampUtc = timestampUtc
+            }, transaction, cancellationToken: cancellationToken)));
+    }
+
+    public Task StartInvestigationAsync(
+        Guid issueId,
+        string officerName,
+        DateTime timestampUtc,
+        IDbConnection? conn = null,
+        IDbTransaction? tx = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(officerName);
+
+        const string sql = """
+            UPDATE dbo.Issues
+            SET Status = 'Investigating',
+                CurrentAssignee = @OfficerName
+            WHERE Id = @IssueId;
+            """;
+
+        return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
+            connection.ExecuteAsync(new CommandDefinition(sql, new
+            {
+                IssueId = issueId,
+                OfficerName = officerName.Trim()
+            }, transaction, cancellationToken: cancellationToken)));
+    }
+
+    public Task AddNoteAsync(
+        InvestigationNote note,
+        IDbConnection? conn = null,
+        IDbTransaction? tx = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(note);
+
+        const string sql = """
+            INSERT INTO dbo.InvestigationNotes (
+                Id, IssueId, OfficerName, NoteText, CreatedAtUtc
+            ) VALUES (
+                @Id, @IssueId, @OfficerName, @NoteText, @CreatedAtUtc
+            );
+            """;
+
+        return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
+            connection.ExecuteAsync(new CommandDefinition(sql, new
+            {
+                note.Id,
+                note.IssueId,
+                note.OfficerName,
+                note.NoteText,
+                note.CreatedAtUtc
+            }, transaction, cancellationToken: cancellationToken)));
+    }
+
+    public Task RecordRemediationAsync(
+        RemediationRecord remediation,
+        IDbConnection? conn = null,
+        IDbTransaction? tx = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(remediation);
+
+        const string sql = """
+            INSERT INTO dbo.RemediationRecords (
+                Id, IssueId, ActionCategory, SummaryDescription, PerformedBy, TimestampUtc, IsSuperseded
+            ) VALUES (
+                @Id, @IssueId, @ActionCategory, @SummaryDescription, @PerformedBy, @TimestampUtc, @IsSuperseded
+            );
+            """;
+
+        return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
+            connection.ExecuteAsync(new CommandDefinition(sql, new
+            {
+                remediation.Id,
+                remediation.IssueId,
+                remediation.ActionCategory,
+                remediation.SummaryDescription,
+                remediation.PerformedBy,
+                remediation.TimestampUtc,
+                remediation.IsSuperseded
+            }, transaction, cancellationToken: cancellationToken)));
+    }
+
+    public Task RecordVerificationAsync(
+        VerificationRecord verification,
+        IDbConnection? conn = null,
+        IDbTransaction? tx = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(verification);
+
+        const string sql = """
+            INSERT INTO dbo.VerificationRecords (
+                Id, IssueId, VerificationMethod, CleanPassed, EvidenceNotes, VerifiedBy, TimestampUtc, IsSuperseded
+            ) VALUES (
+                @Id, @IssueId, @VerificationMethod, @CleanPassed, @EvidenceNotes, @VerifiedBy, @TimestampUtc, @IsSuperseded
+            );
+            """;
+
+        return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
+            connection.ExecuteAsync(new CommandDefinition(sql, new
+            {
+                verification.Id,
+                verification.IssueId,
+                verification.VerificationMethod,
+                verification.CleanPassed,
+                verification.EvidenceNotes,
+                verification.VerifiedBy,
+                verification.TimestampUtc,
+                verification.IsSuperseded
+            }, transaction, cancellationToken: cancellationToken)));
+    }
+
+    public Task ResolveIssueAsync(
+        Guid issueId,
+        DateTime resolvedAtUtc,
+        IDbConnection? conn = null,
+        IDbTransaction? tx = null,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            UPDATE dbo.Issues
+            SET Status = 'Resolved',
+                ResolvedAtUtc = @ResolvedAtUtc
+            WHERE Id = @IssueId;
+            """;
+
+        return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
+            connection.ExecuteAsync(new CommandDefinition(sql, new
+            {
+                IssueId = issueId,
+                ResolvedAtUtc = resolvedAtUtc
+            }, transaction, cancellationToken: cancellationToken)));
+    }
+
+    public Task DismissIssueAsync(
+        Guid issueId,
+        DismissalRecord dismissal,
+        IDbConnection? conn = null,
+        IDbTransaction? tx = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dismissal);
+
+        const string sql = """
+            UPDATE dbo.Issues
+            SET Status = 'Dismissed',
+                DismissedAtUtc = @TimestampUtc
+            WHERE Id = @IssueId;
+
+            INSERT INTO dbo.DismissalRecords (
+                Id, IssueId, DismissalReason, JustificationRationale, DismissedBy, TimestampUtc, IsSuperseded
+            ) VALUES (
+                @Id, @IssueId, @DismissalReason, @JustificationRationale, @DismissedBy, @TimestampUtc, @IsSuperseded
+            );
+            """;
+
+        return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
+            connection.ExecuteAsync(new CommandDefinition(sql, new
+            {
+                IssueId = issueId,
+                TimestampUtc = dismissal.TimestampUtc,
+                Id = dismissal.Id == Guid.Empty ? Guid.NewGuid() : dismissal.Id,
+                dismissal.DismissalReason,
+                dismissal.JustificationRationale,
+                dismissal.DismissedBy,
+                dismissal.IsSuperseded
+            }, transaction, cancellationToken: cancellationToken)));
+    }
+
+    public Task SupersedeActiveVerificationsAsync(
+        Guid issueId,
+        IDbConnection? conn = null,
+        IDbTransaction? tx = null,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            UPDATE dbo.VerificationRecords
+            SET IsSuperseded = 1
+            WHERE IssueId = @IssueId AND IsSuperseded = 0;
+            """;
+
+        return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
+            connection.ExecuteAsync(new CommandDefinition(sql, new { IssueId = issueId }, transaction, cancellationToken: cancellationToken)));
+    }
+
+    public Task<Issue?> GetIssueWithGovernanceByIdAsync(
+        Guid issueId,
+        IDbConnection? conn = null,
+        IDbTransaction? tx = null,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            SELECT
+                Id, CorrelationKey, Title, DetectorId, DetectorName, Scope,
+                BaseSeverity, CurrentSeverity, SeverityRank, Status, EscalationLevel,
+                OccurrenceCount, CurrentAssignee, CreatedAtUtc, LastOccurrenceAtUtc,
+                AcknowledgedAtUtc, ResolvedAtUtc, DismissedAtUtc, ReopenedAtUtc
+            FROM dbo.Issues
+            WHERE Id = @IssueId;
+
+            SELECT TOP 1
+                Id, IssueId, ActionCategory, SummaryDescription, PerformedBy, TimestampUtc, IsSuperseded
+            FROM dbo.RemediationRecords
+            WHERE IssueId = @IssueId AND IsSuperseded = 0
+            ORDER BY TimestampUtc DESC;
+
+            SELECT TOP 1
+                Id, IssueId, VerificationMethod, CleanPassed, EvidenceNotes, VerifiedBy, TimestampUtc, IsSuperseded
+            FROM dbo.VerificationRecords
+            WHERE IssueId = @IssueId AND IsSuperseded = 0
+            ORDER BY TimestampUtc DESC;
+
+            SELECT TOP 1
+                Id, IssueId, DismissalReason, JustificationRationale, DismissedBy, TimestampUtc, IsSuperseded
+            FROM dbo.DismissalRecords
+            WHERE IssueId = @IssueId AND IsSuperseded = 0
+            ORDER BY TimestampUtc DESC;
+
+            SELECT
+                Id, IssueId, OfficerName, NoteText, CreatedAtUtc
+            FROM dbo.InvestigationNotes
+            WHERE IssueId = @IssueId
+            ORDER BY CreatedAtUtc ASC;
+            """;
+
+        return ExecuteWithConnectionAsync(conn, tx, async (connection, transaction) =>
+        {
+            using var multi = await connection.QueryMultipleAsync(
+                new CommandDefinition(sql, new { IssueId = issueId }, transaction, cancellationToken: cancellationToken));
+
+            var issueRow = await multi.ReadSingleOrDefaultAsync<IssueRow>();
+            if (issueRow is null)
+            {
+                return null;
+            }
+
+            var issue = MapToDomain(issueRow);
+
+            var remediationRow = await multi.ReadSingleOrDefaultAsync<RemediationRow>();
+            if (remediationRow is not null)
+            {
+                issue.LoadRemediation(new RemediationRecord(
+                    remediationRow.Id,
+                    remediationRow.IssueId,
+                    remediationRow.ActionCategory,
+                    remediationRow.SummaryDescription,
+                    remediationRow.PerformedBy,
+                    remediationRow.TimestampUtc,
+                    remediationRow.IsSuperseded));
+            }
+
+            var verificationRow = await multi.ReadSingleOrDefaultAsync<VerificationRow>();
+            if (verificationRow is not null)
+            {
+                issue.LoadVerification(new VerificationRecord(
+                    verificationRow.Id,
+                    verificationRow.IssueId,
+                    verificationRow.VerificationMethod,
+                    verificationRow.CleanPassed,
+                    verificationRow.EvidenceNotes,
+                    verificationRow.VerifiedBy,
+                    verificationRow.TimestampUtc,
+                    verificationRow.IsSuperseded));
+            }
+
+            var dismissalRow = await multi.ReadSingleOrDefaultAsync<DismissalRow>();
+            if (dismissalRow is not null)
+            {
+                issue.LoadDismissal(new DismissalRecord(
+                    dismissalRow.Id,
+                    dismissalRow.IssueId,
+                    dismissalRow.DismissalReason,
+                    dismissalRow.JustificationRationale,
+                    dismissalRow.DismissedBy,
+                    dismissalRow.TimestampUtc,
+                    dismissalRow.IsSuperseded));
+            }
+
+            var noteRows = await multi.ReadAsync<NoteRow>();
+            foreach (var noteRow in noteRows)
+            {
+                issue.LoadNote(new InvestigationNote(
+                    noteRow.Id,
+                    noteRow.IssueId,
+                    noteRow.OfficerName,
+                    noteRow.NoteText,
+                    noteRow.CreatedAtUtc));
+            }
+
+            return issue;
+        });
+    }
+
+    public Task InsertActivityLogAsync(
+        IDbConnection conn,
+        IDbTransaction tx,
+        Guid issueId,
+        string activityType,
+        string actorName,
+        string summary,
+        string? detailsJson = null,
+        CancellationToken cancellationToken = default)
+    {
+        return InsertActivityLogInternalAsync(conn, tx, issueId, activityType, actorName, summary, detailsJson, cancellationToken);
+    }
+
+    public static Task InsertActivityLogAsync(
+        IDbConnection conn,
+        IDbTransaction tx,
+        Guid issueId,
+        string activityType,
+        string actorName,
+        string summary,
+        string? detailsJson = null)
+    {
+        return InsertActivityLogInternalAsync(conn, tx, issueId, activityType, actorName, summary, detailsJson, CancellationToken.None);
+    }
+
+    private static Task InsertActivityLogInternalAsync(
+        IDbConnection conn,
+        IDbTransaction tx,
+        Guid issueId,
+        string activityType,
+        string actorName,
+        string summary,
+        string? detailsJson,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(conn);
+        ArgumentNullException.ThrowIfNull(tx);
+        ArgumentException.ThrowIfNullOrWhiteSpace(activityType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(actorName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(summary);
+
+        const string sql = """
+            INSERT INTO dbo.IssueActivityLogs (
+                Id, IssueId, ActivityType, ActorName, TimestampUtc, Summary, DetailsJson
+            ) VALUES (
+                @Id, @IssueId, @ActivityType, @ActorName, SYSUTCDATETIME(), @Summary, @DetailsJson
+            );
+            """;
+
+        return conn.ExecuteAsync(new CommandDefinition(sql, new
+        {
+            Id = Guid.NewGuid(),
+            IssueId = issueId,
+            ActivityType = activityType,
+            ActorName = actorName,
+            Summary = summary,
+            DetailsJson = detailsJson
+        }, transaction: tx, cancellationToken: cancellationToken));
+    }
+
     private async Task<T> ExecuteWithConnectionAsync<T>(
         IDbConnection? connection,
         IDbTransaction? transaction,
@@ -476,4 +914,39 @@ public sealed class IssueRepository : IIssueRepository
         decimal? CreditTotal,
         decimal? VarianceDelta,
         string? TraceString);
+
+    private sealed record RemediationRow(
+        Guid Id,
+        Guid IssueId,
+        string ActionCategory,
+        string SummaryDescription,
+        string PerformedBy,
+        DateTime TimestampUtc,
+        bool IsSuperseded);
+
+    private sealed record VerificationRow(
+        Guid Id,
+        Guid IssueId,
+        string VerificationMethod,
+        bool CleanPassed,
+        string EvidenceNotes,
+        string VerifiedBy,
+        DateTime TimestampUtc,
+        bool IsSuperseded);
+
+    private sealed record DismissalRow(
+        Guid Id,
+        Guid IssueId,
+        string DismissalReason,
+        string JustificationRationale,
+        string DismissedBy,
+        DateTime TimestampUtc,
+        bool IsSuperseded);
+
+    private sealed record NoteRow(
+        Guid Id,
+        Guid IssueId,
+        string OfficerName,
+        string NoteText,
+        DateTime CreatedAtUtc);
 }

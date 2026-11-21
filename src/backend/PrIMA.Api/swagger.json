@@ -1,0 +1,1986 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "PrIMA API",
+    "description": "Proactive Inspection Monitoring App (PrIMA) — Operational Telemetry & Exception Workbench API",
+    "version": "v1"
+  },
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "Login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ingestion/telemetry": {
+      "post": {
+        "tags": [
+          "Ingestion"
+        ],
+        "operationId": "IngestTelemetry",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestTelemetryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestTelemetryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/issues/dashboard-feed": {
+      "get": {
+        "tags": [
+          "Issues"
+        ],
+        "operationId": "GetDashboardFeed",
+        "parameters": [
+          {
+            "name": "Status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Severity",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Scope",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetDashboardFeedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/issues/{id}": {
+      "get": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "Get composite issue detail by ID",
+        "operationId": "GetIssueById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueDetailDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/issues/{id}/take-it": {
+      "post": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "Single-tap triage flow: assign to caller and start investigation",
+        "operationId": "TakeIt",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/issues/{id}/assign": {
+      "post": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "Explicitly assign an issue to an active officer",
+        "operationId": "AssignIssue",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignIssueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/issues/{id}/acknowledge": {
+      "post": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "Acknowledge an issue without changing assignment",
+        "operationId": "AcknowledgeIssue",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/issues/{id}/start-investigation": {
+      "post": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "Transition acknowledged issue to investigating",
+        "operationId": "StartInvestigation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/issues/{id}/notes": {
+      "post": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "Append an investigation note to an active issue",
+        "operationId": "AddNote",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddNoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/issues/{id}/remediation": {
+      "post": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "Record an operational remediation action on an issue",
+        "operationId": "RecordRemediation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordRemediationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/issues/{id}/verification/manual": {
+      "post": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "Record a manual verification outcome on an issue",
+        "operationId": "RecordManualVerification",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordManualVerificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/issues/{id}/resolve": {
+      "post": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "Mark an issue as resolved (enforces verification gate)",
+        "operationId": "ResolveIssue",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/issues/{id}/dismiss": {
+      "post": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "Dismiss an issue with documented justification rationale",
+        "operationId": "DismissIssue",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DismissIssueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/officers": {
+      "get": {
+        "tags": [
+          "Officers"
+        ],
+        "summary": "Get active EDP officers",
+        "operationId": "GetOfficers",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OfficerDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "GetHealth",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "GetApiHealth",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AddNoteRequest": {
+        "required": [
+          "noteText"
+        ],
+        "type": "object",
+        "properties": {
+          "noteText": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AssignIssueRequest": {
+        "required": [
+          "officerId"
+        ],
+        "type": "object",
+        "properties": {
+          "officerId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DashboardFeedSummaryDto": {
+        "required": [
+          "criticalCount",
+          "highCount",
+          "openCount",
+          "reopenedCount",
+          "resolvedTodayCount"
+        ],
+        "type": "object",
+        "properties": {
+          "criticalCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "highCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "openCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "reopenedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "resolvedTodayCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DismissIssueRequest": {
+        "required": [
+          "dismissalReason",
+          "justificationRationale"
+        ],
+        "type": "object",
+        "properties": {
+          "dismissalReason": {
+            "type": "string"
+          },
+          "justificationRationale": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DismissalRecordDto": {
+        "required": [
+          "dismissalReason",
+          "dismissedBy",
+          "id",
+          "issueId",
+          "isSuperseded",
+          "justificationRationale",
+          "timestampUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "issueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "dismissalReason": {
+            "type": "string"
+          },
+          "justificationRationale": {
+            "type": "string"
+          },
+          "dismissedBy": {
+            "type": "string"
+          },
+          "timestampUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isSuperseded": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FindingEvidenceItem": {
+        "required": [
+          "module"
+        ],
+        "type": "object",
+        "properties": {
+          "module": {
+            "type": "string"
+          },
+          "sourceTable": {
+            "type": "string",
+            "nullable": true
+          },
+          "recordKeys": {
+            "type": "string",
+            "nullable": true
+          },
+          "debitTotal": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "creditTotal": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "varianceDelta": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "trace": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FindingItem": {
+        "required": [
+          "baseSeverity",
+          "evidence",
+          "targetEntityReference",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "targetEntityReference": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "baseSeverity": {
+            "type": "string"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/FindingEvidenceItem"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FindingResultItem": {
+        "required": [
+          "action",
+          "correlationKey",
+          "issueId",
+          "occurrenceId",
+          "occurrenceNumber"
+        ],
+        "type": "object",
+        "properties": {
+          "correlationKey": {
+            "type": "string"
+          },
+          "issueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string"
+          },
+          "occurrenceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurrenceNumber": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GetDashboardFeedResponse": {
+        "required": [
+          "items",
+          "summary"
+        ],
+        "type": "object",
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/DashboardFeedSummaryDto"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IssueFeedItemDto"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "HttpValidationProblemDetails": {
+        "required": [
+          "errors"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "additionalProperties": { }
+      },
+      "IngestTelemetryRequest": {
+        "required": [
+          "detectorId",
+          "durationMs",
+          "executionTimestampUtc",
+          "outcome",
+          "triggerSource"
+        ],
+        "type": "object",
+        "properties": {
+          "detectorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "executionTimestampUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "triggerSource": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failureReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FindingItem"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "IngestTelemetryResponse": {
+        "required": [
+          "detectorId",
+          "inspectionRunId",
+          "outcome",
+          "processedFindingsCount",
+          "results"
+        ],
+        "type": "object",
+        "properties": {
+          "inspectionRunId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "detectorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "processedFindingsCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FindingResultItem"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "InvestigationNoteDto": {
+        "required": [
+          "createdAtUtc",
+          "id",
+          "issueId",
+          "noteText",
+          "officerName"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "issueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "officerName": {
+            "type": "string"
+          },
+          "noteText": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "IssueActivityLogDto": {
+        "required": [
+          "activityType",
+          "actorName",
+          "id",
+          "issueId",
+          "summary",
+          "timestampUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "issueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "activityType": {
+            "type": "string"
+          },
+          "actorName": {
+            "type": "string"
+          },
+          "timestampUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "detailsJson": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "IssueDetailDto": {
+        "required": [
+          "activityLogs",
+          "baseSeverity",
+          "correlationKey",
+          "createdAtUtc",
+          "currentSeverity",
+          "detectorId",
+          "detectorName",
+          "dismissal",
+          "escalationLevel",
+          "id",
+          "issue",
+          "lastOccurrenceAtUtc",
+          "notes",
+          "occurrenceCount",
+          "occurrences",
+          "remediationRecords",
+          "remediations",
+          "scope",
+          "severityRank",
+          "status",
+          "title",
+          "verificationRecords",
+          "verifications"
+        ],
+        "type": "object",
+        "properties": {
+          "issue": {
+            "$ref": "#/components/schemas/IssueDetailHeaderRaw"
+          },
+          "occurrences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OccurrenceItemDto"
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvestigationNoteDto"
+            }
+          },
+          "remediations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RemediationRecordDto"
+            }
+          },
+          "verifications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VerificationRecordDto"
+            }
+          },
+          "dismissal": {
+            "$ref": "#/components/schemas/DismissalRecordDto"
+          },
+          "activityLogs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IssueActivityLogDto"
+            }
+          },
+          "remediationRecords": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RemediationRecordDto"
+            },
+            "readOnly": true
+          },
+          "verificationRecords": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VerificationRecordDto"
+            },
+            "readOnly": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true
+          },
+          "correlationKey": {
+            "type": "string",
+            "readOnly": true
+          },
+          "title": {
+            "type": "string",
+            "readOnly": true
+          },
+          "detectorId": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true
+          },
+          "detectorName": {
+            "type": "string",
+            "readOnly": true
+          },
+          "scope": {
+            "type": "string",
+            "readOnly": true
+          },
+          "baseSeverity": {
+            "type": "string",
+            "readOnly": true
+          },
+          "currentSeverity": {
+            "type": "string",
+            "readOnly": true
+          },
+          "severityRank": {
+            "type": "integer",
+            "format": "int32",
+            "readOnly": true
+          },
+          "status": {
+            "type": "string",
+            "readOnly": true
+          },
+          "escalationLevel": {
+            "type": "integer",
+            "format": "int32",
+            "readOnly": true
+          },
+          "occurrenceCount": {
+            "type": "integer",
+            "format": "int32",
+            "readOnly": true
+          },
+          "currentAssignee": {
+            "type": "string",
+            "nullable": true,
+            "readOnly": true
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "lastOccurrenceAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "acknowledgedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true
+          },
+          "resolvedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true
+          },
+          "dismissedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true
+          },
+          "reopenedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "IssueDetailHeaderRaw": {
+        "required": [
+          "baseSeverity",
+          "correlationKey",
+          "createdAtUtc",
+          "currentSeverity",
+          "detectorId",
+          "detectorName",
+          "escalationLevel",
+          "id",
+          "lastOccurrenceAtUtc",
+          "occurrenceCount",
+          "scope",
+          "severityRank",
+          "status",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "correlationKey": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "detectorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "detectorName": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "baseSeverity": {
+            "type": "string"
+          },
+          "currentSeverity": {
+            "type": "string"
+          },
+          "severityRank": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "string"
+          },
+          "escalationLevel": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "occurrenceCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "currentAssignee": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastOccurrenceAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "acknowledgedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "resolvedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "dismissedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "reopenedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "IssueFeedItemDto": {
+        "required": [
+          "correlationKey",
+          "createdAtUtc",
+          "currentSeverity",
+          "detectorId",
+          "detectorName",
+          "escalationLevel",
+          "id",
+          "lastOccurrenceAtUtc",
+          "occurrenceCount",
+          "scope",
+          "severityRank",
+          "status",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "correlationKey": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "detectorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "detectorName": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "currentSeverity": {
+            "type": "string"
+          },
+          "severityRank": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "string"
+          },
+          "escalationLevel": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "occurrenceCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "currentAssignee": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastOccurrenceAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "LoginRequest": {
+        "required": [
+          "password",
+          "username"
+        ],
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "LoginResponse": {
+        "required": [
+          "expiresAtUtc",
+          "officer",
+          "token"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "officer": {
+            "$ref": "#/components/schemas/OfficerDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NoteDto": {
+        "required": [
+          "createdAtUtc",
+          "id",
+          "issueId",
+          "noteText",
+          "officerName"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "issueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "officerName": {
+            "type": "string"
+          },
+          "noteText": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OccurrenceItemDto": {
+        "required": [
+          "id",
+          "inspectionRunId",
+          "issueId",
+          "module",
+          "occurrenceNumber",
+          "timestampUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "issueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inspectionRunId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurrenceNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "timestampUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "module": {
+            "type": "string"
+          },
+          "sourceTable": {
+            "type": "string",
+            "nullable": true
+          },
+          "recordKeys": {
+            "type": "string",
+            "nullable": true
+          },
+          "debitTotal": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "creditTotal": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "varianceDelta": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "traceString": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "OfficerDto": {
+        "required": [
+          "fullName",
+          "id",
+          "role",
+          "username"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      },
+      "RecordManualVerificationRequest": {
+        "required": [
+          "cleanPassed",
+          "evidenceNotes"
+        ],
+        "type": "object",
+        "properties": {
+          "cleanPassed": {
+            "type": "boolean"
+          },
+          "evidenceNotes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RecordRemediationRequest": {
+        "required": [
+          "actionCategory",
+          "summaryDescription"
+        ],
+        "type": "object",
+        "properties": {
+          "actionCategory": {
+            "type": "string"
+          },
+          "summaryDescription": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RemediationRecordDto": {
+        "required": [
+          "actionCategory",
+          "id",
+          "issueId",
+          "isSuperseded",
+          "performedBy",
+          "summaryDescription",
+          "timestampUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "issueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actionCategory": {
+            "type": "string"
+          },
+          "summaryDescription": {
+            "type": "string"
+          },
+          "performedBy": {
+            "type": "string"
+          },
+          "timestampUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isSuperseded": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "VerificationRecordDto": {
+        "required": [
+          "cleanPassed",
+          "evidenceNotes",
+          "id",
+          "issueId",
+          "isSuperseded",
+          "timestampUtc",
+          "verificationMethod",
+          "verifiedBy"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "issueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "verificationMethod": {
+            "type": "string"
+          },
+          "cleanPassed": {
+            "type": "boolean"
+          },
+          "evidenceNotes": {
+            "type": "string"
+          },
+          "verifiedBy": {
+            "type": "string"
+          },
+          "timestampUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isSuperseded": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "apiKey",
+        "description": "JWT Authorization header using the Bearer scheme. Enter 'Bearer {token}'.",
+        "name": "Authorization",
+        "in": "header"
+      },
+      "ApiKey": {
+        "type": "apiKey",
+        "description": "Detector Ingestion API Key for telemetry submission.",
+        "name": "X-Detector-API-Key",
+        "in": "header"
+      }
+    }
+  },
+  "security": [
+    {
+      "Bearer": [ ],
+      "ApiKey": [ ]
+    }
+  ]
+}

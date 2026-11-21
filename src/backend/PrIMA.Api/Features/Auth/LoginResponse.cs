@@ -1,5 +1,5 @@
-namespace PrIMA.Api.Features.Auth;
+using PrIMA.Api.Features.Officers;
 
-public sealed record OfficerDto(Guid Id, string Username, string FullName, string Role);
+namespace PrIMA.Api.Features.Auth;
 
 public sealed record LoginResponse(string Token, DateTime ExpiresAtUtc, OfficerDto Officer);

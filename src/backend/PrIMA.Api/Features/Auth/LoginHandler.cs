@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using PrIMA.Api.Common;
+using PrIMA.Api.Features.Officers;
 
 namespace PrIMA.Api.Features.Auth;
 

@@ -128,7 +128,8 @@ src/
 │   │   │   ├── MigrationRunner.cs         # Executes scripts at startup (EnsureDatabase)
 │   │   │   └── Scripts/
 │   │   │       ├── 001_InitialSchema.sql  # Tables, indexes, foreign keys
-│   │   │       └── 002_SeedInitialUsers.sql # Seeded baseline EDP officer accounts
+│   │   │       ├── 002_SeedInitialUsers.sql # Seeded baseline EDP officer accounts
+│   │   │       └── 003_IssueActivityLogs.sql # Immutable issue activity audit logs (Stage 2)
 │   │   │
 │   │   ├── Seeding/                       # Development-only fixtures
 │   │   │   └── DevelopmentDemoDataSeeder.cs # Gated on IsDevelopment() && SeedDemoData
@@ -182,15 +183,19 @@ src/
 │   │       │
 │   │       ├── Issues/                    # Operational issue management
 │   │       │   ├── GetDashboardFeed/      # Query: S-01 Issue Feed & Summary Counters (WIB boundary)
-│   │       │   ├── GetIssueById/          # Query: S-02 Full issue details + timeline (Stage 2)
-│   │       │   ├── AcknowledgeIssue/      # Command: Open -> Acknowledged (Stage 2)
-│   │       │   ├── AssignIssue/           # Command: Acknowledge + Assign / Self-assign (Stage 2)
-│   │       │   ├── AddInvestigationNote/  # Command: Append note (Stage 2)
+│   │       │   ├── GetIssueById/          # Query: S-02 Full issue details + timeline composite projection (Stage 2)
+│   │       │   ├── TakeIt/                # Command: Single-tap Acknowledge + Assign to caller -> Investigating (Stage 2)
+│   │       │   ├── AssignIssue/           # Command: Assign officer -> Acknowledged (or Reassign in Investigating) (Stage 2)
+│   │       │   ├── AcknowledgeIssue/      # Command: Explicit acknowledge without assignee change (Stage 2)
+│   │       │   ├── StartInvestigation/    # Command: Move from Acknowledged -> Investigating (Stage 2)
+│   │       │   ├── AddInvestigationNote/  # Command: Append note to timeline (Stage 2)
 │   │       │   ├── RecordRemediation/     # Command: Record action taken (M-02, Stage 2)
-│   │       │   ├── TriggerVerificationRun/ # Command: Call detector webhook to re-verify (D-2, Stage 2)
-│   │       │   ├── RecordManualVerification/ # Command: Manual query result record (M-03, Stage 2)
-│   │       │   ├── ResolveIssue/          # Command: Transition to Resolved (Stage 2)
-│   │       │   └── DismissIssue/          # Command: Transition to Dismissed with rationale (M-01, Stage 2)
+│   │       │   ├── RecordManualVerification/ # Command: Manual query result record (M-03, CleanPassed vs StillPresent) (Stage 2)
+│   │       │   ├── ResolveIssue/          # Command: Transition to Resolved enforcing verification gate (BR-PRIMA-004, Stage 2)
+│   │       │   └── DismissIssue/          # Command: Transition to Dismissed with rationale >= 20 chars (M-01, Stage 2)
+│   │       │
+│   │       ├── Officers/                  # EDP officer directory (Stage 2)
+│   │       │   └── GetOfficers/           # Query: Lookup active officers for assignment dropdowns (GET /api/officers)
 │   │       │
 │   │       ├── Detectors/                 # Detector portfolio management (Stage 3)
 │   │       │   ├── GetDetectorList/       # Query: S-03 list + health status
@@ -318,15 +323,70 @@ public sealed class Issue
         // BR-PRIMA-003: Dynamic severity escalation deferred to Stage 3 (CheckRecurrenceEscalation)
     }
 
-    // Acknowledge & Assign ("Take It")
+    // Acknowledge & Assign ("Take It") — single tap moves Open/Reopened/Acknowledged to Investigating
     public Result TakeIt(string officerName, DateTime timestampUtc)
     {
         if (Status is IssueStatus.Resolved or IssueStatus.Dismissed)
             return Result.Failure(IssueErrors.InvalidStateTransition(Status, IssueStatus.Investigating));
 
         Status = IssueStatus.Investigating;
-        CurrentAssignee = officerName;
+        CurrentAssignee = officerName.Trim();
         AcknowledgedAtUtc ??= timestampUtc;
+        return Result.Success();
+    }
+
+    // Explicit assignment (OQ-002, OQ-007)
+    public Result Assign(string officerName, DateTime timestampUtc)
+    {
+        if (Status is IssueStatus.Resolved or IssueStatus.Dismissed)
+            return Result.Failure(IssueErrors.InvalidStateTransition(Status, IssueStatus.Acknowledged));
+
+        CurrentAssignee = officerName.Trim();
+
+        // If Open or Reopened, transition to Acknowledged and halt unacknowledged SLA timer
+        if (Status is IssueStatus.Open or IssueStatus.Reopened)
+        {
+            Status = IssueStatus.Acknowledged;
+            AcknowledgedAtUtc = timestampUtc;
+        }
+        // If already Investigating, CurrentAssignee is updated without state regression (OQ-007)
+
+        return Result.Success();
+    }
+
+    // Explicit acknowledgement
+    public Result Acknowledge(string officerName, DateTime timestampUtc)
+    {
+        if (Status is not (IssueStatus.Open or IssueStatus.Reopened))
+            return Result.Failure(IssueErrors.InvalidStateTransition(Status, IssueStatus.Acknowledged));
+
+        Status = IssueStatus.Acknowledged;
+        CurrentAssignee ??= officerName.Trim();
+        AcknowledgedAtUtc = timestampUtc;
+        return Result.Success();
+    }
+
+    // Start investigation from Acknowledged
+    public Result StartInvestigation(string officerName, DateTime timestampUtc)
+    {
+        if (Status != IssueStatus.Acknowledged)
+            return Result.Failure(IssueErrors.InvalidStateTransition(Status, IssueStatus.Investigating));
+
+        Status = IssueStatus.Investigating;
+        CurrentAssignee = officerName.Trim();
+        return Result.Success();
+    }
+
+    // Append investigation note (C-3)
+    public Result AddNote(string noteText, string officerName, DateTime timestampUtc)
+    {
+        if (Status is IssueStatus.Resolved or IssueStatus.Dismissed)
+            return Result.Failure(IssueErrors.ActionRequiresActiveStatus());
+
+        if (string.IsNullOrWhiteSpace(noteText))
+            return Result.Failure(IssueErrors.EmptyNoteText());
+
+        _notes.Add(new InvestigationNote(Guid.NewGuid(), Id, officerName.Trim(), noteText.Trim(), timestampUtc));
         return Result.Success();
     }
 
@@ -336,11 +396,21 @@ public sealed class Issue
         if (Status != IssueStatus.Investigating)
             return Result.Failure(IssueErrors.ActionRequiresStatus(IssueStatus.Investigating));
 
-        LatestRemediation = new RemediationRecord(category, description, officerName, timestampUtc);
+        if (string.IsNullOrWhiteSpace(description))
+            return Result.Failure(IssueErrors.EmptyRemediationDescription());
+
+        LatestRemediation = new RemediationRecord(category.Trim(), description.Trim(), officerName.Trim(), timestampUtc);
+        
+        // GAP-005 & OQ-005: Supersede prior failed or stale verification upon remediation retry
+        if (LatestVerification != null)
+        {
+            LatestVerification = null;
+        }
+
         return Result.Success();
     }
 
-    // Record Verification (D-2 or M-03)
+    // Record Verification (M-03)
     public Result RecordVerification(string method, bool cleanPassed, string evidenceNotes, string verifiedBy, DateTime timestampUtc)
     {
         if (Status != IssueStatus.Investigating)
@@ -349,7 +419,10 @@ public sealed class Issue
         if (LatestRemediation == null)
             return Result.Failure(IssueErrors.RemediationRequiredBeforeVerification());
 
-        LatestVerification = new VerificationRecord(method, cleanPassed, evidenceNotes, verifiedBy, timestampUtc);
+        if (string.IsNullOrWhiteSpace(evidenceNotes))
+            return Result.Failure(IssueErrors.EmptyVerificationEvidence());
+
+        LatestVerification = new VerificationRecord(method.Trim(), cleanPassed, evidenceNotes.Trim(), verifiedBy.Trim(), timestampUtc);
         return Result.Success();
     }
 
@@ -359,7 +432,7 @@ public sealed class Issue
         if (Status != IssueStatus.Investigating)
             return Result.Failure(IssueErrors.InvalidStateTransition(Status, IssueStatus.Resolved));
 
-        if (LatestVerification == null || !LatestVerification.CleanPassed)
+        if (LatestVerification == null || !LatestVerification.CleanPassed || LatestVerification.IsSuperseded)
             return Result.Failure(IssueErrors.VerificationGateFailed());
 
         Status = IssueStatus.Resolved;
@@ -377,7 +450,7 @@ public sealed class Issue
             return Result.Failure(IssueErrors.DismissalRationaleTooShort());
 
         Status = IssueStatus.Dismissed;
-        Dismissal = new DismissalRecord(reason, rationale.Trim(), officerName, timestampUtc);
+        Dismissal = new DismissalRecord(reason.Trim(), rationale.Trim(), officerName.Trim(), timestampUtc);
         return Result.Success();
     }
 
@@ -462,6 +535,7 @@ Detectors execute externally and post inspection results to:
      - Query `dbo.Issues` with `(UPDLOCK, HOLDLOCK)` by `CorrelationKey`.
      - **If Active Match Found** (`Open`, `Acknowledged`, `Investigating`, `Reopened`):
        - Load `Issue` aggregate, call `issue.RecordRecurringOccurrence(evidence, inspectionRunId, executionTimestampUtc)`.
+       - If `Status == Investigating`, execute `UPDATE dbo.VerificationRecords SET IsSuperseded = 1 WHERE IssueId = @IssueId AND IsSuperseded = 0;` to re-lock the Verification Gate (`BR-PRIMA-004`, `GAP-005`).
        - Update `dbo.Issues` (`OccurrenceCount`, `LastOccurrenceAtUtc`), insert `dbo.Occurrences`.
        - Set finding result `action = "Appended"`.
      - **If Closed Match Found** (`Resolved`, `Dismissed`):
@@ -749,6 +823,18 @@ CREATE TABLE dbo.Officers (
     Role NVARCHAR(30) NOT NULL,                -- EdpOfficer, SystemAnalyst, Lead
     IsActive BIT NOT NULL DEFAULT 1
 );
+
+-- Issue Activity Audit Logs (003_IssueActivityLogs.sql, Stage 2)
+CREATE TABLE dbo.IssueActivityLogs (
+    Id UNIQUEIDENTIFIER PRIMARY KEY,
+    IssueId UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES dbo.Issues(Id),
+    ActivityType NVARCHAR(50) NOT NULL,        -- Created, Acknowledged, Assigned, Reassigned, InvestigationStarted, NoteAdded, RemediationRecorded, VerificationRecorded, Resolved, Dismissed, Reopened
+    ActorName NVARCHAR(100) NOT NULL,
+    TimestampUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    Summary NVARCHAR(500) NOT NULL,
+    DetailsJson NVARCHAR(MAX) NULL
+);
+CREATE INDEX IX_IssueActivityLogs_IssueId_Time ON dbo.IssueActivityLogs(IssueId, TimestampUtc DESC);
 ```
 
 ---

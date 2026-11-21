@@ -125,6 +125,16 @@ public sealed class IngestTelemetryHandler
                             await _issueRepository.InsertIssueAsync(newIssue, connection, transaction, cancellationToken);
                             await _issueRepository.InsertOccurrenceAsync(newIssue.Occurrences[0], connection, transaction, cancellationToken);
 
+                            await _issueRepository.InsertActivityLogAsync(
+                                connection,
+                                transaction,
+                                newIssue.Id,
+                                "Created",
+                                "System",
+                                $"Initial anomaly discovered: {newIssue.Title} ({newIssue.BaseSeverity}).",
+                                detailsJson: null,
+                                cancellationToken: cancellationToken);
+
                             results.Add(new FindingResultItem
                             {
                                 CorrelationKey = correlationKey.Value,
@@ -216,6 +226,16 @@ public sealed class IngestTelemetryHandler
             await _issueRepository.ReopenIssueAsync(issue, connection, transaction, cancellationToken);
             await _issueRepository.InsertOccurrenceAsync(occurrence, connection, transaction, cancellationToken);
 
+            await _issueRepository.InsertActivityLogAsync(
+                connection,
+                transaction,
+                issue.Id,
+                "Reopened",
+                "System",
+                $"Anomaly recurred on closed issue. Issue reopened (Occurrence #{occurrence.OccurrenceNumber}).",
+                detailsJson: null,
+                cancellationToken: cancellationToken);
+
             results.Add(new FindingResultItem
             {
                 CorrelationKey = correlationKey,
@@ -230,6 +250,22 @@ public sealed class IngestTelemetryHandler
             // Active issue: update occurrence count and last occurrence timestamp
             await _issueRepository.UpdateRecurringIssueAsync(issue, connection, transaction, cancellationToken);
             await _issueRepository.InsertOccurrenceAsync(occurrence, connection, transaction, cancellationToken);
+
+            if (issue.Status == IssueStatus.Investigating)
+            {
+                // GAP-005 & OQ-005: Recurrence on active investigating issue supersedes active verification
+                await _issueRepository.SupersedeActiveVerificationsAsync(issue.Id, connection, transaction, cancellationToken);
+
+                await _issueRepository.InsertActivityLogAsync(
+                    connection,
+                    transaction,
+                    issue.Id,
+                    "VerificationInvalidated",
+                    "System",
+                    $"Anomaly recurred during investigation (Occurrence #{occurrence.OccurrenceNumber}). Active verifications superseded.",
+                    detailsJson: null,
+                    cancellationToken: cancellationToken);
+            }
 
             results.Add(new FindingResultItem
             {

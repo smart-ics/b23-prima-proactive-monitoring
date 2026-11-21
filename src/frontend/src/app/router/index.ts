@@ -18,7 +18,13 @@ const routes: RouteRecordRaw[] = [
         path: '',
         name: 'dashboard',
         component: () => import('@/features/dashboard/views/DashboardView.vue'),
-        meta: { title: 'Dashboard - PrIMA' },
+        meta: { title: 'Dashboard - PrIMA', requiresAuth: true },
+      },
+      {
+        path: 'issues/:id',
+        name: 'issue-detail',
+        component: () => import('@/features/issues/views/IssueDetailView.vue'),
+        meta: { requiresAuth: true, title: 'Issue Detail - PrIMA' },
       },
     ],
   },
@@ -59,6 +65,12 @@ router.beforeEach((to, _from, next) => {
     } else {
       next();
     }
+  }
+});
+
+router.afterEach((to) => {
+  if (to.meta.title) {
+    document.title = to.meta.title as string;
   }
 });
 

@@ -58,6 +58,8 @@ public class PrIMAApiFactory : WebApplicationFactory<Program>
     public async Task ResetDatabaseAsync()
     {
         const string cleanupSql = """
+            DELETE FROM dbo.IssueActivityLogs;
+            DELETE FROM dbo.InvestigationNotes;
             DELETE FROM dbo.Occurrences;
             DELETE FROM dbo.RemediationRecords;
             DELETE FROM dbo.VerificationRecords;
@@ -69,8 +71,19 @@ public class PrIMAApiFactory : WebApplicationFactory<Program>
             UPDATE dbo.Officers SET IsActive = 1 WHERE Username IN ('ahmad.budi', 'siti.rahma', 'edp.lead');
             """;
 
-        using var conn = CreateDbConnection();
-        await conn.ExecuteAsync(cleanupSql);
+        for (var attempt = 1; attempt <= 5; attempt++)
+        {
+            try
+            {
+                using var conn = CreateDbConnection();
+                await conn.ExecuteAsync(cleanupSql);
+                return;
+            }
+            catch (SqlException ex) when (ex.Number == 1205 && attempt < 5)
+            {
+                await Task.Delay(100 * attempt);
+            }
+        }
     }
 
     public async Task<string> GetAuthTokenAsync(HttpClient client, string username = "ahmad.budi", string password = "Hospital@2026!")

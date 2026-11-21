@@ -4,6 +4,7 @@ import { VueQueryPlugin } from '@tanstack/vue-query';
 import PrimeVue from 'primevue/config';
 import Aura from '@primevue/themes/aura';
 import Tooltip from 'primevue/tooltip';
+import ToastService from 'primevue/toastservice';
 import 'primeicons/primeicons.css';
 
 import App from './App.vue';
@@ -17,6 +18,7 @@ const pinia = createPinia();
 app.use(pinia);
 app.use(router);
 app.use(VueQueryPlugin);
+app.use(ToastService);
 app.use(PrimeVue, {
   theme: {
     preset: Aura,

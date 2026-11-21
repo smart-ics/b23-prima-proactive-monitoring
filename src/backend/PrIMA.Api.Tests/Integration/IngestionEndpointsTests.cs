@@ -350,6 +350,13 @@ public class IngestionEndpointsTests : IAsyncLifetime
         occRows.Should().HaveCount(1);
         ((int)occRows[0].OccurrenceNumber).Should().Be(1);
         ((Guid)occRows[0].InspectionRunId).Should().Be(responseBody.InspectionRunId);
+
+        // Verify Created Activity Log in DB
+        const string logSql = "SELECT ActivityType, ActorName, Summary FROM dbo.IssueActivityLogs WHERE IssueId = @IssueId AND ActivityType = 'Created';";
+        var logRow = await _factory.QuerySingleOrDefaultSqlAsync<ActivityLogRow>(logSql, new { IssueId = responseBody.Results[0].IssueId });
+        logRow.Should().NotBeNull();
+        logRow!.ActivityType.Should().Be("Created");
+        logRow.ActorName.Should().Be("System");
     }
 
     [Fact]
@@ -522,5 +529,110 @@ public class IngestionEndpointsTests : IAsyncLifetime
         const string disSql = "SELECT IsSuperseded FROM dbo.DismissalRecords WHERE IssueId = @IssueId;";
         var disSuperseded = await _factory.QuerySingleOrDefaultSqlAsync<bool>(disSql, new { IssueId = issueId });
         disSuperseded.Should().BeTrue();
+
+        // Verify Activity Log contains Reopened entry
+        const string reopenLogSql = """
+            SELECT ActivityType, ActorName, Summary
+            FROM dbo.IssueActivityLogs
+            WHERE IssueId = @IssueId AND ActivityType = 'Reopened';
+            """;
+        var reopenLogRow = await _factory.QuerySingleOrDefaultSqlAsync<ActivityLogRow>(reopenLogSql, new { IssueId = issueId });
+        reopenLogRow.Should().NotBeNull();
+        reopenLogRow!.ActivityType.Should().Be("Reopened");
+        reopenLogRow.ActorName.Should().Be("System");
     }
+
+    [Fact]
+    public async Task Ingest_RecurringFindingOnInvestigatingIssue_SupersedesActiveVerificationsAndWritesVerificationInvalidatedActivityLog()
+    {
+        // Arrange - Seed detector and ingest initial finding
+        var detectorId = await _factory.SeedDetectorAsync();
+        var finding = new FindingItem
+        {
+            TargetEntityReference = "INVESTIGATING-TARGET-404",
+            Title = "Investigating Anomaly",
+            BaseSeverity = "High",
+            Evidence = new FindingEvidenceItem
+            {
+                Module = "Pharmacy",
+                SourceTable = "Prescriptions",
+                RecordKeys = "RX-404",
+                Trace = "Trace Investigating"
+            }
+        };
+
+        var initialRequest = new IngestTelemetryRequest
+        {
+            DetectorId = detectorId,
+            ExecutionTimestampUtc = DateTime.UtcNow.AddHours(-1),
+            TriggerSource = "Scheduled",
+            Outcome = "FindingDiscovered",
+            DurationMs = 80,
+            Findings = [finding]
+        };
+
+        var initialResponse = await _client.SendAsync(CreateRequest(initialRequest));
+        initialResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var initialBody = await initialResponse.Content.ReadFromJsonAsync<IngestTelemetryResponse>(JsonOptions);
+        var issueId = initialBody!.Results[0].IssueId;
+
+        // Transition issue to Investigating and attach an active VerificationRecord
+        const string setupSql = """
+            UPDATE dbo.Issues
+            SET Status = 'Investigating',
+                CurrentAssignee = 'ahmad.budi',
+                AcknowledgedAtUtc = SYSUTCDATETIME()
+            WHERE Id = @IssueId;
+
+            INSERT INTO dbo.VerificationRecords (Id, IssueId, VerificationMethod, CleanPassed, EvidenceNotes, VerifiedBy, TimestampUtc, IsSuperseded)
+            VALUES (NEWID(), @IssueId, 'ManualQuery', 1, 'Manual verification passed', 'ahmad.budi', SYSUTCDATETIME(), 0);
+            """;
+        await _factory.ExecuteSqlAsync(setupSql, new { IssueId = issueId });
+
+        // Act - Ingest recurring finding on active Investigating issue (GAP-005, OQ-005)
+        var recurrenceRequest = new IngestTelemetryRequest
+        {
+            DetectorId = detectorId,
+            ExecutionTimestampUtc = DateTime.UtcNow,
+            TriggerSource = "Scheduled",
+            Outcome = "FindingDiscovered",
+            DurationMs = 95,
+            Findings = [finding]
+        };
+
+        var recurrenceResponse = await _client.SendAsync(CreateRequest(recurrenceRequest));
+
+        // Assert
+        recurrenceResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var recurrenceBody = await recurrenceResponse.Content.ReadFromJsonAsync<IngestTelemetryResponse>(JsonOptions);
+        recurrenceBody!.Results[0].Action.Should().Be("Appended");
+        recurrenceBody.Results[0].IssueId.Should().Be(issueId);
+        recurrenceBody.Results[0].OccurrenceNumber.Should().Be(2);
+
+        // Verify Issue status remains Investigating with incremented OccurrenceCount
+        const string issueSql = "SELECT Status, OccurrenceCount, CurrentAssignee FROM dbo.Issues WHERE Id = @Id;";
+        var issueRow = await _factory.QuerySingleOrDefaultSqlAsync<dynamic>(issueSql, new { Id = issueId });
+        ((string)issueRow!.Status).Should().Be("Investigating");
+        ((int)issueRow.OccurrenceCount).Should().Be(2);
+        ((string)issueRow.CurrentAssignee).Should().Be("ahmad.budi");
+
+        // Verify VerificationRecord is now superseded (IsSuperseded = 1)
+        const string verSql = "SELECT IsSuperseded FROM dbo.VerificationRecords WHERE IssueId = @IssueId;";
+        var verSuperseded = await _factory.QuerySingleOrDefaultSqlAsync<bool>(verSql, new { IssueId = issueId });
+        verSuperseded.Should().BeTrue();
+
+        // Verify Activity Log contains VerificationInvalidated entry
+        const string logSql = """
+            SELECT ActivityType, ActorName, Summary
+            FROM dbo.IssueActivityLogs
+            WHERE IssueId = @IssueId AND ActivityType = 'VerificationInvalidated';
+            """;
+        var logRow = await _factory.QuerySingleOrDefaultSqlAsync<ActivityLogRow>(logSql, new { IssueId = issueId });
+        logRow.Should().NotBeNull();
+        logRow!.ActivityType.Should().Be("VerificationInvalidated");
+        logRow.ActorName.Should().Be("System");
+        logRow.Summary.Should().Contain("Occurrence #2");
+    }
+
+    private sealed record ActivityLogRow(string ActivityType, string ActorName, string Summary);
 }

@@ -43,4 +43,23 @@ public static class CurrentOfficerExtensions
 
     public static CurrentOfficer? GetCurrentOfficer(this HttpContext? context) =>
         CurrentOfficer.FromClaimsPrincipal(context?.User);
+
+    public static string GetCurrentOfficerName(this HttpContext? context, string fallback = "EDP Officer")
+    {
+        var officer = context.GetCurrentOfficer();
+        if (officer != null && !string.IsNullOrWhiteSpace(officer.FullName))
+        {
+            return officer.FullName.Trim();
+        }
+        if (officer != null && !string.IsNullOrWhiteSpace(officer.Username))
+        {
+            return officer.Username.Trim();
+        }
+        var name = context?.User?.Identity?.Name;
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            return name.Trim();
+        }
+        return fallback;
+    }
 }

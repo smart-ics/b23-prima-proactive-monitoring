@@ -1,6 +1,29 @@
 <script setup lang="ts">
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 import type { IssueFeedItemDto } from '@/shared/types/api.generated';
 import { formatWibDateTime, formatRelativeTime } from '@/shared/utils/dateUtils';
+
+const router = useRouter();
+const copiedKey = ref<string | null>(null);
+
+function navigateToIssue(id: string) {
+  router.push(`/issues/${id}`);
+}
+
+async function copyCorrelationKey(key: string) {
+  try {
+    await navigator.clipboard.writeText(key);
+    copiedKey.value = key;
+    setTimeout(() => {
+      if (copiedKey.value === key) {
+        copiedKey.value = null;
+      }
+    }, 2000);
+  } catch (err) {
+    console.error('Failed to copy correlation key', err);
+  }
+}
 
 defineProps<{
   items: IssueFeedItemDto[];
@@ -143,7 +166,8 @@ function getStatusIcon(status: string): string {
           <tr
             v-for="item in items"
             :key="item.id"
-            class="hover:bg-slate-50/70 transition-colors cursor-default select-text"
+            @click="navigateToIssue(item.id)"
+            class="transition-colors cursor-pointer hover:bg-slate-800/40 select-text"
             :class="getSeverityBorderClass(item.currentSeverity)"
           >
             <!-- 1. Severity Badge -->
@@ -173,6 +197,14 @@ function getStatusIcon(status: string): string {
               <div class="font-mono text-[11px] text-slate-500 mt-1 flex items-center gap-1.5 break-all">
                 <i class="pi pi-key text-[10px] text-slate-400"></i>
                 <span>{{ item.correlationKey }}</span>
+                <button
+                  type="button"
+                  @click.stop="copyCorrelationKey(item.correlationKey)"
+                  class="p-0.5 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
+                  title="Copy correlation key"
+                >
+                  <i :class="copiedKey === item.correlationKey ? 'pi pi-check text-emerald-600' : 'pi pi-copy'" class="text-[10px]"></i>
+                </button>
               </div>
             </td>
 
