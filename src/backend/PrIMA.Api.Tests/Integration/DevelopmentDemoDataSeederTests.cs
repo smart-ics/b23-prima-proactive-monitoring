@@ -5,6 +5,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using PrIMA.Api.Common;
+using PrIMA.Api.Features.Detectors.GetDetectorById;
+using PrIMA.Api.Features.Detectors.GetDetectorList;
+using PrIMA.Api.Features.Detectors.GetDetectorSummary;
+using PrIMA.Api.Features.Detectors.GetInspectionRuns;
 using PrIMA.Api.Features.Issues.GetIssueById;
 using PrIMA.Api.Seeding;
 using PrIMA.Api.Tests.Fixtures;
@@ -117,8 +121,100 @@ public class DevelopmentDemoDataSeederTests : IAsyncLifetime
             DevelopmentDemoDataSeeder.AdmissionDetectorId,
             DevelopmentDemoDataSeeder.PrescriptionDetectorId,
             DevelopmentDemoDataSeeder.ReplicationDetectorId,
-            DevelopmentDemoDataSeeder.LaboratoryDetectorId
+            DevelopmentDemoDataSeeder.LaboratoryDetectorId,
+            DevelopmentDemoDataSeeder.RetiredDetectorId
         });
+
+        // Stage 3 Detector Combinations Assertions
+        // 1.1 Active + Healthy with configured WebhookUrl and high pass rate
+        var billingDetector = await _factory.QuerySingleOrDefaultSqlAsync<dynamic>(
+            "SELECT * FROM dbo.Detectors WHERE Id = @Id",
+            new { Id = DevelopmentDemoDataSeeder.BillingDetectorId });
+        ((string)billingDetector!.AdminStatus).Should().Be("Active");
+        ((string)billingDetector.HealthStatus).Should().Be("Healthy");
+        ((string)billingDetector.WebhookUrl).Should().NotBeNullOrEmpty();
+
+        // 1.2 Active + Failing with recent ExecutionFailed run and FAIL:{id} issue
+        var repDetector = await _factory.QuerySingleOrDefaultSqlAsync<dynamic>(
+            "SELECT * FROM dbo.Detectors WHERE Id = @Id",
+            new { Id = DevelopmentDemoDataSeeder.ReplicationDetectorId });
+        ((string)repDetector!.AdminStatus).Should().Be("Active");
+        ((string)repDetector.HealthStatus).Should().Be("Failing");
+
+        var repFailIssue = await _factory.QuerySingleOrDefaultSqlAsync<dynamic>(
+            "SELECT * FROM dbo.Issues WHERE Id = @Id",
+            new { Id = DevelopmentDemoDataSeeder.ReplicationFailingIssueId });
+        ((object?)repFailIssue).Should().NotBeNull();
+        ((string)repFailIssue!.CorrelationKey).Should().Be($"FAIL:{DevelopmentDemoDataSeeder.ReplicationDetectorId}");
+        ((string)repFailIssue.Status).Should().Be("Open");
+
+        // 1.3 Active + Silent with missed heartbeat beyond 2x cadence and SILENT:{id} issue
+        var admDetector = await _factory.QuerySingleOrDefaultSqlAsync<dynamic>(
+            "SELECT * FROM dbo.Detectors WHERE Id = @Id",
+            new { Id = DevelopmentDemoDataSeeder.AdmissionDetectorId });
+        ((string)admDetector!.AdminStatus).Should().Be("Active");
+        ((string)admDetector.HealthStatus).Should().Be("Silent");
+
+        var admSilentIssue = await _factory.QuerySingleOrDefaultSqlAsync<dynamic>(
+            "SELECT * FROM dbo.Issues WHERE Id = @Id",
+            new { Id = DevelopmentDemoDataSeeder.AdmissionSilentIssueId });
+        ((object?)admSilentIssue).Should().NotBeNull();
+        ((string)admSilentIssue!.CorrelationKey).Should().Be($"SILENT:{DevelopmentDemoDataSeeder.AdmissionDetectorId}");
+        ((string)admSilentIssue.Status).Should().Be("Open");
+
+        // 1.4 Paused detector
+        var labDetector = await _factory.QuerySingleOrDefaultSqlAsync<dynamic>(
+            "SELECT * FROM dbo.Detectors WHERE Id = @Id",
+            new { Id = DevelopmentDemoDataSeeder.LaboratoryDetectorId });
+        ((string)labDetector!.AdminStatus).Should().Be("Paused");
+
+        // 1.5 Retired detector with historical runs and active linked issue (DEC-009)
+        var retDetector = await _factory.QuerySingleOrDefaultSqlAsync<dynamic>(
+            "SELECT * FROM dbo.Detectors WHERE Id = @Id",
+            new { Id = DevelopmentDemoDataSeeder.RetiredDetectorId });
+        ((string)retDetector!.AdminStatus).Should().Be("Retired");
+
+        var retActiveIssue = await _factory.QuerySingleOrDefaultSqlAsync<dynamic>(
+            "SELECT * FROM dbo.Issues WHERE Id = @Id",
+            new { Id = DevelopmentDemoDataSeeder.RetiredDetectorIssueId });
+        ((object?)retActiveIssue).Should().NotBeNull();
+        ((string)retActiveIssue!.Status).Should().Be("Investigating");
+        ((Guid)retActiveIssue.DetectorId).Should().Be(DevelopmentDemoDataSeeder.RetiredDetectorId);
+
+        // 1.6 Historical runs: at least 30 runs per detector covering Passed, FindingDiscovered, and ExecutionFailed outcomes
+        foreach (var detId in new[]
+        {
+            DevelopmentDemoDataSeeder.BillingDetectorId,
+            DevelopmentDemoDataSeeder.AdmissionDetectorId,
+            DevelopmentDemoDataSeeder.PrescriptionDetectorId,
+            DevelopmentDemoDataSeeder.ReplicationDetectorId,
+            DevelopmentDemoDataSeeder.LaboratoryDetectorId,
+            DevelopmentDemoDataSeeder.RetiredDetectorId
+        })
+        {
+            var runCount = await _factory.QuerySingleOrDefaultSqlAsync<int>(
+                "SELECT COUNT(1) FROM dbo.InspectionRuns WHERE DetectorId = @Id",
+                new { Id = detId });
+            runCount.Should().BeGreaterOrEqualTo(30);
+
+            var outcomes = (await _factory.QuerySqlAsync<string>(
+                "SELECT DISTINCT Outcome FROM dbo.InspectionRuns WHERE DetectorId = @Id",
+                new { Id = detId })).ToList();
+            outcomes.Should().Contain(new[] { "Passed", "FindingDiscovered", "ExecutionFailed" });
+        }
+
+        // 1.7 Escalated issue: EscalationLevel >= 1, CurrentSeverity High or Critical, with SeverityEscalated activity logs
+        var escIssue = await _factory.QuerySingleOrDefaultSqlAsync<dynamic>(
+            "SELECT * FROM dbo.Issues WHERE Id = @Id",
+            new { Id = DevelopmentDemoDataSeeder.EscalatedIssueId });
+        ((object?)escIssue).Should().NotBeNull();
+        ((int)escIssue!.EscalationLevel).Should().BeGreaterOrEqualTo(1);
+        new[] { "High", "Critical" }.Should().Contain((string)escIssue.CurrentSeverity);
+
+        var escLogs = (await _factory.QuerySqlAsync<string>(
+            "SELECT ActivityType FROM dbo.IssueActivityLogs WHERE IssueId = @Id AND ActivityType = 'SeverityEscalated'",
+            new { Id = DevelopmentDemoDataSeeder.EscalatedIssueId })).ToList();
+        escLogs.Should().NotBeEmpty();
 
         // Assert: 2. Acknowledged issue assigned to siti.rahma with notes and activity logs
         var ackIssue = await _factory.QuerySingleOrDefaultSqlAsync<dynamic>(
@@ -285,5 +381,34 @@ public class DevelopmentDemoDataSeederTests : IAsyncLifetime
         detailDto.Remediations.Should().NotBeEmpty();
         detailDto.Verifications.Should().NotBeEmpty();
         detailDto.ActivityLogs.Should().NotBeEmpty();
+
+        // Verify Detector queries work cleanly against seeded data (S-03, S-04, S-06)
+        var detectorListHandler = new GetDetectorListHandler(_connectionFactory);
+        var detectorList = await detectorListHandler.HandleAsync(new GetDetectorListQuery());
+        detectorList.Should().HaveCount(6);
+
+        var summaryHandler = new GetDetectorSummaryHandler(_connectionFactory);
+        var summary = await summaryHandler.HandleAsync();
+        summary.TotalCount.Should().Be(6);
+        summary.HealthyCount.Should().Be(2); // Billing, Prescription
+        summary.FailingCount.Should().Be(1); // Replication
+        summary.SilentCount.Should().Be(1);  // Admission
+        summary.PausedCount.Should().Be(1);  // Laboratory
+
+        var detectorDetailHandler = new GetDetectorByIdHandler(_connectionFactory);
+        var billingDetail = await detectorDetailHandler.HandleAsync(DevelopmentDemoDataSeeder.BillingDetectorId);
+        billingDetail.Should().NotBeNull();
+        billingDetail!.ReliabilityStats.TotalRuns30d.Should().BeGreaterOrEqualTo(30);
+        billingDetail.ReliabilityStats.PassRate30d.Should().BeGreaterThan(90.0m);
+        billingDetail.RecentRuns.Should().HaveCount(10);
+
+        var inspectionRunsHandler = new GetInspectionRunsHandler(_connectionFactory);
+        var runsLog = await inspectionRunsHandler.HandleAsync(
+            DevelopmentDemoDataSeeder.BillingDetectorId,
+            new GetInspectionRunsQuery(
+                StartDateUtc: DateTime.UtcNow.AddDays(-30),
+                EndDateUtc: DateTime.UtcNow));
+        runsLog.Should().NotBeNull();
+        runsLog!.TotalCount.Should().BeGreaterOrEqualTo(30);
     }
 }

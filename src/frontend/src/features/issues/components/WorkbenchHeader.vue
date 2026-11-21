@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { ChevronLeft, Copy, Check, Lock, CheckCircle2 } from 'lucide-vue-next';
 import type { IssueDetailDto } from '@/shared/types/api.generated';
+import { useIssueDetectorDetailQuery } from '@/features/issues/api/useIssueDetailQueries';
 
 const props = defineProps<{
   issueDetail: IssueDetailDto;
   isActionLoading?: boolean;
+  hasWebhook?: boolean;
+  isTriggeringVerification?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -16,18 +19,23 @@ const emit = defineEmits<{
   (e: 'open-dismiss-modal'): void;
   (e: 'open-remediation-modal'): void;
   (e: 'open-verification-modal'): void;
+  (e: 'trigger-verification'): void;
   (e: 'resolve'): void;
   (e: 'focus-note-composer'): void;
 }>();
 
+const route = useRoute();
 const router = useRouter();
 const isCopied = ref(false);
 
+const isFromHistory = computed(() => route.query.from === 'history');
+const backLabel = computed(() => (isFromHistory.value ? '← Back to History' : 'Back to Dashboard'));
+
 function navigateBack() {
-  if (window.history.length > 1) {
+  if (window.history.state?.back) {
     router.back();
   } else {
-    router.push('/');
+    router.push(isFromHistory.value ? '/history' : '/');
   }
 }
 
@@ -49,8 +57,17 @@ const issue = computed(() => props.issueDetail.issue ?? props.issueDetail);
 const status = computed(() => issue.value.status ?? props.issueDetail.status);
 const currentSeverity = computed(() => issue.value.currentSeverity ?? props.issueDetail.currentSeverity);
 const title = computed(() => issue.value.title ?? props.issueDetail.title);
+const detectorId = computed(() => issue.value.detectorId ?? props.issueDetail.detectorId);
 const detectorName = computed(() => issue.value.detectorName ?? props.issueDetail.detectorName);
 const correlationKey = computed(() => issue.value.correlationKey ?? props.issueDetail.correlationKey);
+
+const detectorQuery = useIssueDetectorDetailQuery(detectorId);
+const resolvedHasWebhook = computed(() => {
+  if (typeof props.hasWebhook === 'boolean') {
+    return props.hasWebhook;
+  }
+  return Boolean(detectorQuery.data.value?.webhookUrl && detectorQuery.data.value.webhookUrl.trim().length > 0);
+});
 
 // Remediations & Verifications state inspection
 const remediations = computed(() => props.issueDetail.remediations ?? props.issueDetail.remediationRecords ?? []);
@@ -116,11 +133,12 @@ function getStatusBadgeClass(st: string): string {
         <button
           type="button"
           @click="navigateBack"
-          class="mt-1 p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          title="Back to Dashboard"
-          aria-label="Back to Dashboard"
+          class="mt-1 p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+          :title="backLabel"
+          :aria-label="backLabel"
         >
-          <ChevronLeft class="w-5 h-5" />
+          <ChevronLeft v-if="!isFromHistory" class="w-5 h-5" />
+          <span v-else class="text-xs font-medium whitespace-nowrap px-1">{{ backLabel }}</span>
         </button>
 
         <div class="min-w-0 flex-1">
@@ -145,10 +163,20 @@ function getStatusBadgeClass(st: string): string {
               {{ status }}
             </span>
 
-            <!-- Detector Badge with Tooltip & No active router link (OQ-006) -->
+            <!-- Detector Badge: Active Router Link to S-04 Detector Detail (E-2) -->
+            <router-link
+              v-if="detectorId"
+              :to="`/detectors/${detectorId}`"
+              v-tooltip.bottom="'View detector operational details (S-04)'"
+              class="px-2.5 py-0.5 text-xs font-medium rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 hover:border-slate-500 inline-flex items-center gap-1.5 transition-colors group cursor-pointer"
+            >
+              <i class="pi pi-compass text-[11px] text-indigo-400 group-hover:text-indigo-300"></i>
+              <span>{{ detectorName }}</span>
+              <i class="pi pi-arrow-up-right text-[9px] text-slate-400 group-hover:text-slate-200"></i>
+            </router-link>
             <span
-              v-tooltip.bottom="'Detector portfolio detail available in Stage 3'"
-              class="px-2.5 py-0.5 text-xs font-medium rounded-md bg-slate-800 text-slate-300 border border-slate-700 cursor-help inline-flex items-center gap-1 hover:border-slate-600 transition-colors"
+              v-else
+              class="px-2.5 py-0.5 text-xs font-medium rounded-md bg-slate-800 text-slate-300 border border-slate-700 inline-flex items-center gap-1"
             >
               <i class="pi pi-compass text-[11px] text-slate-400"></i>
               {{ detectorName }}
@@ -316,16 +344,49 @@ function getStatusBadgeClass(st: string): string {
 
           <!-- Case B: Investigating with remediation, without verification -->
           <template v-else-if="latestRemediation && !latestVerification">
-            <!-- Manual Verification promoted per OQ-001 -->
-            <button
-              type="button"
-              :disabled="isActionLoading"
-              @click="emit('open-verification-modal')"
-              class="px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-emerald-400 disabled:opacity-50"
-            >
-              <i class="pi pi-verified text-xs"></i>
-              Manual Verification
-            </button>
+            <!-- If detector has Webhook: Trigger Verification Re-run is Primary, Manual is Secondary (D-2) -->
+            <template v-if="resolvedHasWebhook">
+              <button
+                type="button"
+                :disabled="isActionLoading || isTriggeringVerification"
+                @click="emit('trigger-verification')"
+                class="px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-indigo-400 disabled:opacity-50 cursor-pointer"
+              >
+                <i v-if="isTriggeringVerification" class="pi pi-spin pi-spinner text-xs"></i>
+                <i v-else class="pi pi-play text-xs"></i>
+                <span>Trigger Verification Re-run</span>
+              </button>
+              <button
+                type="button"
+                :disabled="isActionLoading || isTriggeringVerification"
+                @click="emit('open-verification-modal')"
+                class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 cursor-pointer"
+              >
+                <i class="pi pi-verified text-xs text-emerald-400"></i>
+                <span>Manual Verification</span>
+              </button>
+            </template>
+
+            <!-- If no webhook configured: Manual Verification is Primary with Helper Note (D-2) -->
+            <template v-else>
+              <button
+                type="button"
+                :disabled="isActionLoading"
+                @click="emit('open-verification-modal')"
+                class="px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-emerald-400 disabled:opacity-50 cursor-pointer"
+              >
+                <i class="pi pi-verified text-xs"></i>
+                <span>Manual Verification</span>
+              </button>
+              <span
+                class="text-xs text-slate-400 italic flex items-center gap-1 px-1"
+                title="Configure Webhook URL on detector to enable automated re-runs"
+              >
+                <i class="pi pi-info-circle text-[11px] text-slate-500"></i>
+                <span>No webhook configured for automated re-run</span>
+              </span>
+            </template>
+
             <!-- Disabled Mark Resolved -->
             <button
               type="button"
@@ -347,7 +408,7 @@ function getStatusBadgeClass(st: string): string {
             </button>
             <button
               type="button"
-              :disabled="isActionLoading"
+              :disabled="isActionLoading || isTriggeringVerification"
               @click="emit('open-dismiss-modal')"
               class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-800/60 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50"
             >
@@ -358,25 +419,58 @@ function getStatusBadgeClass(st: string): string {
 
           <!-- Case C: Investigating with failed verification (CleanPassed == false) -->
           <template v-else-if="latestVerification && !latestVerification.cleanPassed">
-            <!-- Retry Remediation Primary -->
+            <!-- If detector has Webhook: Trigger Verification Re-run is Primary (D-2) -->
+            <template v-if="resolvedHasWebhook">
+              <button
+                type="button"
+                :disabled="isActionLoading || isTriggeringVerification"
+                @click="emit('trigger-verification')"
+                class="px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-indigo-400 disabled:opacity-50 cursor-pointer"
+              >
+                <i v-if="isTriggeringVerification" class="pi pi-spin pi-spinner text-xs"></i>
+                <i v-else class="pi pi-play text-xs"></i>
+                <span>Trigger Verification Re-run</span>
+              </button>
+              <button
+                type="button"
+                :disabled="isActionLoading || isTriggeringVerification"
+                @click="emit('open-verification-modal')"
+                class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 cursor-pointer"
+              >
+                <i class="pi pi-verified text-xs text-emerald-400"></i>
+                <span>Manual Verification</span>
+              </button>
+            </template>
+
+            <!-- If no webhook configured: Manual Verification is Primary with Helper Note (D-2) -->
+            <template v-else>
+              <button
+                type="button"
+                :disabled="isActionLoading"
+                @click="emit('open-verification-modal')"
+                class="px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-emerald-400 disabled:opacity-50 cursor-pointer"
+              >
+                <i class="pi pi-verified text-xs"></i>
+                <span>Manual Verification</span>
+              </button>
+              <span
+                class="text-xs text-slate-400 italic flex items-center gap-1 px-1"
+                title="Configure Webhook URL on detector to enable automated re-runs"
+              >
+                <i class="pi pi-info-circle text-[11px] text-slate-500"></i>
+                <span>No webhook configured for automated re-run</span>
+              </span>
+            </template>
+
+            <!-- Secondary Retry Remediation -->
             <button
               type="button"
-              :disabled="isActionLoading"
+              :disabled="isActionLoading || isTriggeringVerification"
               @click="emit('open-remediation-modal')"
-              class="px-4 py-2 text-sm font-semibold rounded-lg bg-slate-100 hover:bg-white text-slate-900 shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-white disabled:opacity-50"
+              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 cursor-pointer"
             >
-              <i class="pi pi-refresh text-xs"></i>
-              Record Remediation (Retry)
-            </button>
-            <!-- Secondary Manual Verification -->
-            <button
-              type="button"
-              :disabled="isActionLoading"
-              @click="emit('open-verification-modal')"
-              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-            >
-              <i class="pi pi-verified text-xs text-emerald-400"></i>
-              Manual Verification
+              <i class="pi pi-refresh text-xs text-amber-400"></i>
+              <span>Record Remediation (Retry)</span>
             </button>
             <!-- Disabled Mark Resolved -->
             <button

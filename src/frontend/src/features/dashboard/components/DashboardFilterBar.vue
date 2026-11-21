@@ -6,6 +6,7 @@ const props = defineProps<{
   severity: string;
   scope: string;
   search: string;
+  escalatedOnly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -13,6 +14,7 @@ const emit = defineEmits<{
   (e: 'update:severity', value: string): void;
   (e: 'update:scope', value: string): void;
   (e: 'update:search', value: string): void;
+  (e: 'update:escalatedOnly', value: boolean): void;
   (e: 'reset'): void;
 }>();
 
@@ -82,6 +84,7 @@ const isFiltered = computed(() => {
     (props.status && props.status !== 'All') ||
     (props.severity && props.severity !== 'All') ||
     (props.scope && props.scope !== 'All') ||
+    Boolean(props.escalatedOnly) ||
     Boolean(props.search && props.search.trim().length > 0)
   );
 });
@@ -91,6 +94,7 @@ function handleReset() {
   if (debounceTimer) {
     clearTimeout(debounceTimer);
   }
+  emit('update:escalatedOnly', false);
   emit('reset');
 }
 </script>
@@ -144,6 +148,26 @@ function handleReset() {
             </option>
           </select>
         </div>
+
+        <!-- Escalated Toggle Pill Button -->
+        <button
+          type="button"
+          @click="emit('update:escalatedOnly', !props.escalatedOnly)"
+          class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors cursor-pointer"
+          :class="[
+            props.escalatedOnly
+              ? 'bg-amber-100 text-amber-900 border-amber-300 font-semibold shadow-2xs'
+              : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100 hover:text-slate-900'
+          ]"
+          title="Filter escalated issues only"
+        >
+          <span :class="props.escalatedOnly ? 'text-amber-600 font-bold' : 'text-slate-400'">↑</span>
+          <span>Escalated</span>
+          <span
+            v-if="props.escalatedOnly"
+            class="w-1.5 h-1.5 rounded-full bg-amber-500"
+          ></span>
+        </button>
 
         <!-- Reset Filters Button -->
         <button

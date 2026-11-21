@@ -36,7 +36,7 @@ public class SwaggerDocumentTests
         var paths = rootNode!["paths"]?.AsObject();
         paths.Should().NotBeNull();
 
-        // Verify all 11 Stage 2 endpoints
+        // Verify Stage 2, Stage 3, and Stage 4 endpoints
         var expectedPaths = new[]
         {
             "/api/officers",
@@ -49,7 +49,16 @@ public class SwaggerDocumentTests
             "/api/issues/{id}/remediation",
             "/api/issues/{id}/verification/manual",
             "/api/issues/{id}/resolve",
-            "/api/issues/{id}/dismiss"
+            "/api/issues/{id}/dismiss",
+            "/api/issues/{id}/verification/trigger-run",
+            "/api/detectors",
+            "/api/detectors/summary",
+            "/api/detectors/{id}",
+            "/api/detectors/{id}/runs",
+            "/api/detectors/{id}/toggle-status",
+            "/api/detectors/{id}/trigger-run",
+            "/api/history/reliability-kpi",
+            "/api/history/issues"
         };
 
         foreach (var expectedPath in expectedPaths)
@@ -75,7 +84,24 @@ public class SwaggerDocumentTests
             "AddNoteRequest",
             "RecordRemediationRequest",
             "RecordManualVerificationRequest",
-            "DismissIssueRequest"
+            "DismissIssueRequest",
+            "DetectorListItemDto",
+            "DetectorSummaryDto",
+            "DetectorDetailDto",
+            "DetectorReliabilityStatsDto",
+            "RecentRunSummaryDto",
+            "LinkedActiveIssueDto",
+            "InspectionRunLogResponse",
+            "InspectionRunDetailDto",
+            "RegisterDetectorRequest",
+            "UpdateDetectorRequest",
+            "ToggleDetectorStatusRequest",
+            "InspectionRunResultDto",
+            "VerificationResultDto",
+            "ReliabilityKpiResponse",
+            "BreakdownItemDto",
+            "HistoricalIssuesResponse",
+            "HistoricalIssueItemDto"
         };
 
         foreach (var expectedSchema in expectedSchemas)
@@ -97,7 +123,9 @@ public class SwaggerDocumentTests
         var current = AppDomain.CurrentDomain.BaseDirectory;
         while (!string.IsNullOrEmpty(current))
         {
-            if (File.Exists(Path.Combine(current, "docs", "issues", "IS002-PRIMA-STAGE-2-IMPLEMENTATION-PLAN.md")))
+            if (File.Exists(Path.Combine(current, "docs", "issues", "IS004-PRIMA-STAGE-4-IMPLEMENTATION-PLAN.md")) ||
+                File.Exists(Path.Combine(current, "docs", "issues", "IS003-PRIMA-STAGE-3-IMPLEMENTATION-PLAN.md")) ||
+                File.Exists(Path.Combine(current, "docs", "issues", "IS002-PRIMA-STAGE-2-IMPLEMENTATION-PLAN.md")))
             {
                 return current;
             }

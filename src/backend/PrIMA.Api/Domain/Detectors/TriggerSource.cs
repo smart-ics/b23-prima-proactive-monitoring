@@ -4,5 +4,6 @@ public enum TriggerSource
 {
     Scheduled,
     Manual,
-    EventHook
+    EventHook,
+    AutomatedReRun
 }

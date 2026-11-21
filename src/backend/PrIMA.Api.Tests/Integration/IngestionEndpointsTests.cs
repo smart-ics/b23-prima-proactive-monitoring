@@ -148,14 +148,15 @@ public class IngestionEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Ingest_ExecutionFailedOutcome_Returns422ProblemDetails()
+    public async Task Ingest_ExecutionFailedOutcome_SynthesizesFailIssue_MarksDetectorFailing_AndReturns200()
     {
         // Arrange
-        var detectorId = await _factory.SeedDetectorAsync();
+        var detectorId = await _factory.SeedDetectorAsync(name: "GL Balance Validator");
+        var now = DateTime.UtcNow;
         var request = new IngestTelemetryRequest
         {
             DetectorId = detectorId,
-            ExecutionTimestampUtc = DateTime.UtcNow,
+            ExecutionTimestampUtc = now,
             TriggerSource = "Scheduled",
             Outcome = "ExecutionFailed",
             DurationMs = 500,
@@ -168,10 +169,181 @@ public class IngestionEndpointsTests : IAsyncLifetime
         var response = await _client.SendAsync(message);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        var problem = await response.Content.ReadFromJsonAsync<HttpValidationProblemDetails>(JsonOptions);
-        problem.Should().NotBeNull();
-        problem!.Errors.Values.SelectMany(x => x).Should().ContainMatch("*ExecutionFailed outcome is supported in Stage 3*");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<IngestTelemetryResponse>(JsonOptions);
+        body.Should().NotBeNull();
+        body!.Outcome.Should().Be("ExecutionFailed");
+        body.TotalFindingsProcessed.Should().Be(0);
+        body.NewIssuesCreated.Should().Be(1);
+        body.RecurrencesRecorded.Should().Be(0);
+        body.Results.Should().HaveCount(1);
+        body.Results[0].CorrelationKey.Should().Be($"FAIL:{detectorId}");
+        body.Results[0].Action.Should().Be("Created");
+
+        // Verify InspectionRun recorded with FailureReason
+        const string runSql = "SELECT Outcome, FailureReason FROM dbo.InspectionRuns WHERE Id = @Id;";
+        var runRow = await _factory.QuerySingleOrDefaultSqlAsync<InspectionRunRow>(runSql, new { Id = body.InspectionRunId });
+        runRow.Should().NotBeNull();
+        runRow!.Outcome.Should().Be("ExecutionFailed");
+        runRow.FailureReason.Should().Be("Database timeout occurred during sweep");
+
+        // Verify Detector HealthStatus transitioned to Failing
+        const string detSql = "SELECT HealthStatus, LastHealthyHeartbeatUtc FROM dbo.Detectors WHERE Id = @Id;";
+        var detRow = await _factory.QuerySingleOrDefaultSqlAsync<DetectorStatusRow>(detSql, new { Id = detectorId });
+        detRow.Should().NotBeNull();
+        detRow!.HealthStatus.Should().Be("Failing");
+
+        // Verify synthetic issue created per BR-PRIMA-005
+        const string issueSql = "SELECT Scope, Title, BaseSeverity, Status, OccurrenceCount FROM dbo.Issues WHERE CorrelationKey = @Key;";
+        var issueRow = await _factory.QuerySingleOrDefaultSqlAsync<IssueVerifyRow>(issueSql, new { Key = $"FAIL:{detectorId}" });
+        issueRow.Should().NotBeNull();
+        issueRow!.Scope.Should().Be("Infrastructure");
+        issueRow.Title.Should().Be("Execution Failure: GL Balance Validator");
+        issueRow.BaseSeverity.Should().Be("High");
+        issueRow.Status.Should().Be("Open");
+        issueRow.OccurrenceCount.Should().Be(1);
+
+        // Verify Activity Log entry Created
+        const string logSql = "SELECT ActivityType, ActorName, Summary FROM dbo.IssueActivityLogs WHERE IssueId = @IssueId AND ActivityType = 'Created';";
+        var logRow = await _factory.QuerySingleOrDefaultSqlAsync<ActivityLogRow>(logSql, new { IssueId = body.Results[0].IssueId });
+        logRow.Should().NotBeNull();
+        logRow!.ActivityType.Should().Be("Created");
+        logRow.ActorName.Should().Be("System");
+    }
+
+    [Fact]
+    public async Task Ingest_ExecutionFailedOutcome_SubsequentFailure_AppendsOccurrence_AndLogsRecurrence()
+    {
+        // Arrange
+        var detectorId = await _factory.SeedDetectorAsync(name: "GL Balance Validator 2");
+        var now = DateTime.UtcNow;
+        var initialRequest = new IngestTelemetryRequest
+        {
+            DetectorId = detectorId,
+            ExecutionTimestampUtc = now,
+            TriggerSource = "Scheduled",
+            Outcome = "ExecutionFailed",
+            DurationMs = 500,
+            FailureReason = "Initial failure"
+        };
+
+        var firstResp = await _client.SendAsync(CreateRequest(initialRequest));
+        firstResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var firstBody = await firstResp.Content.ReadFromJsonAsync<IngestTelemetryResponse>(JsonOptions);
+        var issueId = firstBody!.Results[0].IssueId;
+
+        // Act - Second failure
+        var recurrenceRequest = new IngestTelemetryRequest
+        {
+            DetectorId = detectorId,
+            ExecutionTimestampUtc = now.AddMinutes(5),
+            TriggerSource = "Scheduled",
+            Outcome = "ExecutionFailed",
+            DurationMs = 600,
+            FailureReason = "Second failure"
+        };
+
+        var secondResp = await _client.SendAsync(CreateRequest(recurrenceRequest));
+
+        // Assert
+        secondResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var secondBody = await secondResp.Content.ReadFromJsonAsync<IngestTelemetryResponse>(JsonOptions);
+        secondBody!.Outcome.Should().Be("ExecutionFailed");
+        secondBody.TotalFindingsProcessed.Should().Be(0);
+        secondBody.NewIssuesCreated.Should().Be(0);
+        secondBody.RecurrencesRecorded.Should().Be(1);
+        secondBody.Results[0].Action.Should().Be("Appended");
+        secondBody.Results[0].IssueId.Should().Be(issueId);
+        secondBody.Results[0].OccurrenceNumber.Should().Be(2);
+
+        // Verify OccurrenceCount incremented
+        const string issueSql = "SELECT OccurrenceCount FROM dbo.Issues WHERE Id = @Id;";
+        var occurrenceCount = await _factory.QuerySingleOrDefaultSqlAsync<int>(issueSql, new { Id = issueId });
+        occurrenceCount.Should().Be(2);
+
+        // Verify Activity Log entry RecurrenceObserved
+        const string logSql = "SELECT ActivityType, ActorName, Summary FROM dbo.IssueActivityLogs WHERE IssueId = @IssueId AND ActivityType = 'RecurrenceObserved';";
+        var logRow = await _factory.QuerySingleOrDefaultSqlAsync<ActivityLogRow>(logSql, new { IssueId = issueId });
+        logRow.Should().NotBeNull();
+        logRow!.ActivityType.Should().Be("RecurrenceObserved");
+        logRow.ActorName.Should().Be("System");
+    }
+
+    [Fact]
+    public async Task Ingest_CleanRunFromFailingOrSilentDetector_ResetsHealthToHealthy_AndLogsRecoveryAudit()
+    {
+        // Arrange: detector in Failing health with an active FAIL issue
+        var detectorId = await _factory.SeedDetectorAsync(name: "Recovering Detector", healthStatus: "Failing");
+        var failIssueId = Guid.NewGuid();
+        var silentIssueId = Guid.NewGuid();
+        var now = DateTime.UtcNow;
+
+        // Insert active FAIL issue and active SILENT issue
+        await _factory.ExecuteSqlAsync("""
+            INSERT INTO dbo.Issues (
+                Id, CorrelationKey, Title, DetectorId, DetectorName, Scope,
+                BaseSeverity, CurrentSeverity, SeverityRank, Status, EscalationLevel,
+                OccurrenceCount, CreatedAtUtc, LastOccurrenceAtUtc
+            ) VALUES 
+                (@FailId, @FailKey, 'Execution Failure: Recovering Detector', @DetectorId, 'Recovering Detector', 'Infrastructure', 'High', 'High', 3, 'Open', 0, 1, @Now, @Now),
+                (@SilentId, @SilentKey, 'Silent Detector: Recovering Detector', @DetectorId, 'Recovering Detector', 'Infrastructure', 'High', 'High', 3, 'Open', 0, 1, @Now, @Now);
+            """,
+            new
+            {
+                FailId = failIssueId,
+                FailKey = $"FAIL:{detectorId}",
+                SilentId = silentIssueId,
+                SilentKey = $"SILENT:{detectorId}",
+                DetectorId = detectorId,
+                Now = now
+            });
+
+        // Act: clean Passed telemetry ingested
+        var cleanRequest = new IngestTelemetryRequest
+        {
+            DetectorId = detectorId,
+            ExecutionTimestampUtc = now.AddMinutes(2),
+            TriggerSource = "Scheduled",
+            Outcome = "Passed",
+            DurationMs = 120
+        };
+
+        var response = await _client.SendAsync(CreateRequest(cleanRequest));
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Verify detector health reset to Healthy and heartbeat updated
+        const string detSql = "SELECT HealthStatus, LastHealthyHeartbeatUtc FROM dbo.Detectors WHERE Id = @Id;";
+        var detRow = await _factory.QuerySingleOrDefaultSqlAsync<DetectorStatusRow>(detSql, new { Id = detectorId });
+        detRow.Should().NotBeNull();
+        detRow!.HealthStatus.Should().Be("Healthy");
+        detRow.LastHealthyHeartbeatUtc.Should().NotBeNull();
+        detRow.LastHealthyHeartbeatUtc!.Value.Should().BeCloseTo(now.AddMinutes(2), TimeSpan.FromSeconds(2));
+
+        // Verify FAIL issue remains Open per DEC-004
+        const string issueSql = "SELECT Status FROM dbo.Issues WHERE Id = @Id;";
+        var failStatus = await _factory.QuerySingleOrDefaultSqlAsync<string>(issueSql, new { Id = failIssueId });
+        failStatus.Should().Be("Open");
+
+        // Verify DetectorRecovered activity logs inserted for both issues
+        const string logSql = """
+            SELECT ActivityType, ActorName, Summary 
+            FROM dbo.IssueActivityLogs 
+            WHERE IssueId = @IssueId AND ActivityType = 'DetectorRecovered';
+            """;
+        var failLog = await _factory.QuerySingleOrDefaultSqlAsync<ActivityLogRow>(logSql, new { IssueId = failIssueId });
+        failLog.Should().NotBeNull();
+        failLog!.ActivityType.Should().Be("DetectorRecovered");
+        failLog.ActorName.Should().Be("System");
+        failLog.Summary.Should().Contain("Detector resumed healthy reporting");
+        failLog.Summary.Should().Contain("Issue remains open for EDP verification.");
+
+        var silentLog = await _factory.QuerySingleOrDefaultSqlAsync<ActivityLogRow>(logSql, new { IssueId = silentIssueId });
+        silentLog.Should().NotBeNull();
+        silentLog!.ActivityType.Should().Be("DetectorRecovered");
+        silentLog.ActorName.Should().Be("System");
+        silentLog.Summary.Should().Contain("Detector resumed healthy reporting");
     }
 
     [Fact]
@@ -635,4 +807,7 @@ public class IngestionEndpointsTests : IAsyncLifetime
     }
 
     private sealed record ActivityLogRow(string ActivityType, string ActorName, string Summary);
+    private sealed record InspectionRunRow(string Outcome, string? FailureReason);
+    private sealed record DetectorStatusRow(string HealthStatus, DateTime? LastHealthyHeartbeatUtc);
+    private sealed record IssueVerifyRow(string Scope, string Title, string BaseSeverity, string Status, int OccurrenceCount);
 }

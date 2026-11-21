@@ -345,6 +345,70 @@ public sealed class Issue
         DismissedAtUtc = timestampUtc;
     }
 
+    // Dynamic Severity Escalation (DEC-006, DEC-007, BR-PRIMA-003)
+    public Result EscalateSeverity(string reason, DateTime utcNow)
+    {
+        if (Status is IssueStatus.Resolved or IssueStatus.Dismissed)
+            return Result.Failure(IssueErrors.ActionRequiresActiveStatus());
+
+        if (CurrentSeverity == IssueSeverity.Critical)
+            return Result.Success();
+
+        CurrentSeverity = CurrentSeverity switch
+        {
+            IssueSeverity.Low => IssueSeverity.Medium,
+            IssueSeverity.Medium => IssueSeverity.High,
+            IssueSeverity.High => IssueSeverity.Critical,
+            _ => IssueSeverity.Critical
+        };
+
+        SeverityRank = Domain.Issues.SeverityRank.From(CurrentSeverity);
+        EscalationLevel++;
+        return Result.Success();
+    }
+
+    public bool CheckSlaEscalation(TimeSpan slaTimeout, DateTime utcNow, out string reason)
+    {
+        reason = string.Empty;
+
+        if (Status is not (IssueStatus.Open or IssueStatus.Reopened))
+            return false;
+
+        if (AcknowledgedAtUtc != null)
+            return false;
+
+        if (CurrentSeverity >= IssueSeverity.Critical)
+            return false;
+
+        var unackDuration = utcNow - CreatedAtUtc;
+        if (unackDuration > (slaTimeout * (EscalationLevel + 1)))
+        {
+            reason = $"Issue unacknowledged for {(int)unackDuration.TotalMinutes} minutes (SLA window: {(int)slaTimeout.TotalMinutes}m).";
+            return true;
+        }
+
+        return false;
+    }
+
+    public bool CheckRecurrenceEscalation(DateTime utcNow, out string reason)
+    {
+        reason = string.Empty;
+
+        if (Status is IssueStatus.Resolved or IssueStatus.Dismissed)
+            return false;
+
+        if (CurrentSeverity >= IssueSeverity.Critical)
+            return false;
+
+        if (OccurrenceCount >= 5)
+        {
+            reason = $"Issue recurred {OccurrenceCount} times across monitoring cycles.";
+            return true;
+        }
+
+        return false;
+    }
+
     public void InvalidateVerification()
     {
         if (LatestVerification != null)

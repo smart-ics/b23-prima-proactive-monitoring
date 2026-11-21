@@ -9,6 +9,7 @@ export interface DashboardFilterState {
   severity: string;
   scope: string;
   search: string;
+  escalatedOnly?: boolean;
 }
 
 /**
@@ -36,6 +37,9 @@ export function useDashboardFeed(filters: Ref<DashboardFilterState>) {
       }
       if (current.search && current.search.trim().length > 0) {
         params.search = current.search.trim();
+      }
+      if (current.escalatedOnly) {
+        params.escalatedOnly = 'true';
       }
 
       const response = await http.get<GetDashboardFeedResponse>('/issues/dashboard-feed', {

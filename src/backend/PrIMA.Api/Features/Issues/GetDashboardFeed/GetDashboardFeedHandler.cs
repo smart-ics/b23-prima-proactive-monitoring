@@ -19,7 +19,8 @@ public sealed class GetDashboardFeedHandler
             COUNT(CASE WHEN Status NOT IN ('Resolved', 'Dismissed') AND CurrentSeverity = 'High' THEN 1 END) AS HighCount,
             COUNT(CASE WHEN Status = 'Open' THEN 1 END) AS OpenCount,
             COUNT(CASE WHEN Status = 'Reopened' THEN 1 END) AS ReopenedCount,
-            COUNT(CASE WHEN Status = 'Resolved' AND ResolvedAtUtc >= @StartOfTodayWibUtc AND ResolvedAtUtc < @StartOfTomorrowWibUtc THEN 1 END) AS ResolvedTodayCount
+            COUNT(CASE WHEN Status = 'Resolved' AND ResolvedAtUtc >= @StartOfTodayWibUtc AND ResolvedAtUtc < @StartOfTomorrowWibUtc THEN 1 END) AS ResolvedTodayCount,
+            COUNT(CASE WHEN Status NOT IN ('Resolved', 'Dismissed') AND (EscalationLevel > 0 OR CurrentSeverity = 'Critical') THEN 1 END) AS EscalatedCount
         FROM dbo.Issues;
 
         SELECT
@@ -47,6 +48,7 @@ public sealed class GetDashboardFeedHandler
                DetectorName LIKE '%' + @Search + '%' OR
                CorrelationKey LIKE '%' + @Search + '%'
           ))
+          AND (@EscalatedOnly = 0 OR (EscalationLevel > 0 OR CurrentSeverity = 'Critical'))
         ORDER BY SeverityRank DESC, LastOccurrenceAtUtc DESC;
         """;
 
@@ -111,7 +113,8 @@ public sealed class GetDashboardFeedHandler
             Status = statusParam,
             Severity = severityParam,
             Scope = scopeParam,
-            Search = searchParam
+            Search = searchParam,
+            EscalatedOnly = query.EscalatedOnly == true ? 1 : 0
         };
 
         using var connection = _connectionFactory.CreateConnection();
@@ -128,7 +131,7 @@ public sealed class GetDashboardFeedHandler
             new CommandDefinition(DashboardFeedSql, parameters, cancellationToken: cancellationToken));
 
         var summary = await multi.ReadSingleOrDefaultAsync<DashboardFeedSummaryDto>()
-            ?? new DashboardFeedSummaryDto(0, 0, 0, 0, 0);
+            ?? new DashboardFeedSummaryDto(0, 0, 0, 0, 0, 0);
 
         var items = (await multi.ReadAsync<IssueFeedItemDto>()).ToList();
 

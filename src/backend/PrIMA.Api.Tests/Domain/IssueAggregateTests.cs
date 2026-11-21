@@ -198,4 +198,204 @@ public class IssueAggregateTests
         issue.SeverityRank.Should().Be(SeverityRank.Critical);
         issue.EscalationLevel.Should().Be(0);
     }
+
+    [Fact]
+    public void EscalateSeverity_StepsThroughSeveritiesAndCapsAtCritical()
+    {
+        // Arrange
+        var issue = Issue.Create(
+            correlationKey: CorrelationKey.Create(Guid.NewGuid(), "ESCALATE-01"),
+            title: "Low Severity Issue",
+            detectorId: Guid.NewGuid(),
+            detectorName: "Escalation Test Detector",
+            scope: MonitoringScope.DataIntegrity,
+            baseSeverity: IssueSeverity.Low,
+            inspectionRunId: Guid.NewGuid(),
+            evidence: CreateSampleEvidence(),
+            timestampUtc: DateTime.UtcNow);
+
+        issue.CurrentSeverity.Should().Be(IssueSeverity.Low);
+        issue.SeverityRank.Should().Be(SeverityRank.Low);
+        issue.EscalationLevel.Should().Be(0);
+
+        // Act & Assert 1: Low -> Medium
+        var res1 = issue.EscalateSeverity("SLA breach", DateTime.UtcNow);
+        res1.IsSuccess.Should().BeTrue();
+        issue.CurrentSeverity.Should().Be(IssueSeverity.Medium);
+        issue.SeverityRank.Should().Be(SeverityRank.Medium);
+        issue.EscalationLevel.Should().Be(1);
+
+        // Act & Assert 2: Medium -> High
+        var res2 = issue.EscalateSeverity("Recurrence", DateTime.UtcNow);
+        res2.IsSuccess.Should().BeTrue();
+        issue.CurrentSeverity.Should().Be(IssueSeverity.High);
+        issue.SeverityRank.Should().Be(SeverityRank.High);
+        issue.EscalationLevel.Should().Be(2);
+
+        // Act & Assert 3: High -> Critical
+        var res3 = issue.EscalateSeverity("Repeated SLA breach", DateTime.UtcNow);
+        res3.IsSuccess.Should().BeTrue();
+        issue.CurrentSeverity.Should().Be(IssueSeverity.Critical);
+        issue.SeverityRank.Should().Be(SeverityRank.Critical);
+        issue.EscalationLevel.Should().Be(3);
+
+        // Act & Assert 4: Critical -> Capped (returns Success, remains Critical, escalation level remains 3)
+        var res4 = issue.EscalateSeverity("Another breach", DateTime.UtcNow);
+        res4.IsSuccess.Should().BeTrue();
+        issue.CurrentSeverity.Should().Be(IssueSeverity.Critical);
+        issue.SeverityRank.Should().Be(SeverityRank.Critical);
+        issue.EscalationLevel.Should().Be(3);
+    }
+
+    [Theory]
+    [InlineData(IssueStatus.Resolved)]
+    [InlineData(IssueStatus.Dismissed)]
+    public void EscalateSeverity_OnClosedIssue_ReturnsFailure(IssueStatus status)
+    {
+        // Arrange
+        var issue = Issue.Create(
+            correlationKey: CorrelationKey.Create(Guid.NewGuid(), "ESCALATE-CLOSED"),
+            title: "Closed Issue",
+            detectorId: Guid.NewGuid(),
+            detectorName: "Escalation Test Detector",
+            scope: MonitoringScope.DataIntegrity,
+            baseSeverity: IssueSeverity.Low,
+            inspectionRunId: Guid.NewGuid(),
+            evidence: CreateSampleEvidence(),
+            timestampUtc: DateTime.UtcNow.AddHours(-2));
+
+        if (status == IssueStatus.Resolved)
+        {
+            issue.Resolve(DateTime.UtcNow.AddHours(-1));
+        }
+        else
+        {
+            issue.Dismiss(DateTime.UtcNow.AddHours(-1));
+        }
+
+        // Act
+        var result = issue.EscalateSeverity("SLA breach", DateTime.UtcNow);
+
+        // Assert
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Code.Should().Be(IssueErrors.ActionRequiresActiveStatus().Code);
+    }
+
+    [Fact]
+    public void CheckSlaEscalation_EvaluatesSlaTimeoutAndWindowMultiplesCorrectly()
+    {
+        // Arrange
+        var baseTime = DateTime.UtcNow.AddMinutes(-40);
+        var issue = Issue.Create(
+            correlationKey: CorrelationKey.Create(Guid.NewGuid(), "SLA-01"),
+            title: "Unack Issue",
+            detectorId: Guid.NewGuid(),
+            detectorName: "SLA Detector",
+            scope: MonitoringScope.DataIntegrity,
+            baseSeverity: IssueSeverity.Low,
+            inspectionRunId: Guid.NewGuid(),
+            evidence: CreateSampleEvidence(),
+            timestampUtc: baseTime);
+
+        var slaTimeout = TimeSpan.FromMinutes(30);
+
+        // Act: 40 minutes elapsed > 30 minutes (slaTimeout * (0 + 1))
+        var breached = issue.CheckSlaEscalation(slaTimeout, DateTime.UtcNow, out var reason);
+
+        // Assert
+        breached.Should().BeTrue();
+        reason.Should().Contain("Issue unacknowledged for 40 minutes");
+        reason.Should().Contain("SLA window: 30m");
+
+        // Now escalate it once (level becomes 1)
+        issue.EscalateSeverity("SLA breach", DateTime.UtcNow);
+        issue.EscalationLevel.Should().Be(1);
+
+        // Now check at 40 minutes: required window is 30 * (1 + 1) = 60 minutes
+        var breachedAfterLevel1 = issue.CheckSlaEscalation(slaTimeout, DateTime.UtcNow, out reason);
+        breachedAfterLevel1.Should().BeFalse();
+        reason.Should().BeEmpty();
+
+        // Check at 70 minutes: 70 > 60
+        var breachedAt70m = issue.CheckSlaEscalation(slaTimeout, baseTime.AddMinutes(70), out reason);
+        breachedAt70m.Should().BeTrue();
+        reason.Should().Contain("Issue unacknowledged for 70 minutes");
+    }
+
+    [Fact]
+    public void CheckSlaEscalation_WhenAcknowledgedOrCriticalOrNotOpen_ReturnsFalse()
+    {
+        // Arrange
+        var now = DateTime.UtcNow;
+        var slaTimeout = TimeSpan.FromMinutes(30);
+
+        var issue = Issue.Create(
+            correlationKey: CorrelationKey.Create(Guid.NewGuid(), "SLA-02"),
+            title: "Issue",
+            detectorId: Guid.NewGuid(),
+            detectorName: "SLA Detector",
+            scope: MonitoringScope.DataIntegrity,
+            baseSeverity: IssueSeverity.Critical,
+            inspectionRunId: Guid.NewGuid(),
+            evidence: CreateSampleEvidence(),
+            timestampUtc: now.AddHours(-2));
+
+        // When critical -> false
+        issue.CheckSlaEscalation(slaTimeout, now, out _).Should().BeFalse();
+
+        // When acknowledged -> false
+        var issue2 = Issue.Create(
+            correlationKey: CorrelationKey.Create(Guid.NewGuid(), "SLA-03"),
+            title: "Issue 2",
+            detectorId: Guid.NewGuid(),
+            detectorName: "SLA Detector",
+            scope: MonitoringScope.DataIntegrity,
+            baseSeverity: IssueSeverity.Medium,
+            inspectionRunId: Guid.NewGuid(),
+            evidence: CreateSampleEvidence(),
+            timestampUtc: now.AddHours(-2));
+        issue2.Acknowledge("officer", now.AddHours(-1));
+        issue2.CheckSlaEscalation(slaTimeout, now, out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public void CheckRecurrenceEscalation_WhenOccurrenceThresholdReached_ReturnsTrue()
+    {
+        // Arrange
+        var now = DateTime.UtcNow;
+        var issue = Issue.Create(
+            correlationKey: CorrelationKey.Create(Guid.NewGuid(), "RECUR-01"),
+            title: "Recurring Issue",
+            detectorId: Guid.NewGuid(),
+            detectorName: "Recur Detector",
+            scope: MonitoringScope.DataIntegrity,
+            baseSeverity: IssueSeverity.Medium,
+            inspectionRunId: Guid.NewGuid(),
+            evidence: CreateSampleEvidence(),
+            timestampUtc: now.AddHours(-1));
+
+        // 1 occurrence initially -> false
+        issue.CheckRecurrenceEscalation(now, out _).Should().BeFalse();
+
+        // Add 3 more (total 4) -> false
+        for (int i = 2; i <= 4; i++)
+        {
+            issue.RecordRecurringOccurrence(Guid.NewGuid(), CreateSampleEvidence(), now);
+        }
+        issue.OccurrenceCount.Should().Be(4);
+        issue.CheckRecurrenceEscalation(now, out _).Should().BeFalse();
+
+        // Add 5th occurrence -> true
+        issue.RecordRecurringOccurrence(Guid.NewGuid(), CreateSampleEvidence(), now);
+        issue.OccurrenceCount.Should().Be(5);
+        var breached = issue.CheckRecurrenceEscalation(now, out var reason);
+        breached.Should().BeTrue();
+        reason.Should().Be("Issue recurred 5 times across monitoring cycles.");
+
+        // When Critical -> false
+        issue.EscalateSeverity("step to high", now);
+        issue.EscalateSeverity("step to critical", now);
+        issue.CurrentSeverity.Should().Be(IssueSeverity.Critical);
+        issue.CheckRecurrenceEscalation(now, out _).Should().BeFalse();
+    }
 }

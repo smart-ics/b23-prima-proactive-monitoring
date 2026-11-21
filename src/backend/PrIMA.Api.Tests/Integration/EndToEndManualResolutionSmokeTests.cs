@@ -215,6 +215,7 @@ public class EndToEndManualResolutionSmokeTests : IAsyncLifetime
         // -------------------------------------------------------------------------
         // STEP 10: Execute `Mark Resolved` Action
         // -------------------------------------------------------------------------
+        await Task.Delay(25);
         var resolveResponse = await authClient.PostAsync($"/api/issues/{issueId}/resolve", null);
         resolveResponse.StatusCode.Should().Be(HttpStatusCode.NoContent, "Resolving an issue with clean verification must succeed");
 

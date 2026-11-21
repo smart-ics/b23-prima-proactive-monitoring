@@ -48,7 +48,8 @@ public class DashboardFeedTests : IAsyncLifetime
         int occurrenceCount = 1,
         DateTime? lastOccurrenceAtUtc = null,
         DateTime? resolvedAtUtc = null,
-        string? currentAssignee = null)
+        string? currentAssignee = null,
+        int escalationLevel = 0)
     {
         var lastOcc = lastOccurrenceAtUtc ?? DateTime.UtcNow;
         const string sql = """
@@ -58,7 +59,7 @@ public class DashboardFeedTests : IAsyncLifetime
                 CurrentAssignee, CreatedAtUtc, LastOccurrenceAtUtc, ResolvedAtUtc
             ) VALUES (
                 @Id, @CorrelationKey, @Title, @DetectorId, @DetectorName, @Scope, @BaseSeverity,
-                @CurrentSeverity, @SeverityRank, @Status, 0, @OccurrenceCount,
+                @CurrentSeverity, @SeverityRank, @Status, @EscalationLevel, @OccurrenceCount,
                 @CurrentAssignee, @CreatedAtUtc, @LastOccurrenceAtUtc, @ResolvedAtUtc
             );
             """;
@@ -75,6 +76,7 @@ public class DashboardFeedTests : IAsyncLifetime
             CurrentSeverity = currentSeverity,
             SeverityRank = severityRank,
             Status = status,
+            EscalationLevel = escalationLevel,
             OccurrenceCount = occurrenceCount,
             CurrentAssignee = currentAssignee,
             CreatedAtUtc = lastOcc,
@@ -177,6 +179,7 @@ public class DashboardFeedTests : IAsyncLifetime
         body.Summary.OpenCount.Should().Be(1);
         body.Summary.ReopenedCount.Should().Be(1);
         body.Summary.ResolvedTodayCount.Should().Be(1);
+        body.Summary.EscalatedCount.Should().Be(1);
     }
 
     [Fact]
@@ -275,5 +278,59 @@ public class DashboardFeedTests : IAsyncLifetime
         // Act & Assert 6: Search filter by correlation key substring "LAB-003"
         var searchResp3 = await client.GetFromJsonAsync<GetDashboardFeedResponse>("/api/issues/dashboard-feed?search=LAB-003", JsonOptions);
         searchResp3!.Items.Should().ContainSingle(x => x.Id == issueC);
+    }
+
+    [Fact]
+    public async Task GetDashboardFeed_EscalatedFilter_ReturnsOnlyEscalatedOrCriticalActiveIssues()
+    {
+        // Arrange
+        var client = await CreateAuthenticatedClientAsync();
+        var detectorId = await _factory.SeedDetectorAsync();
+
+        // 1. Critical issue with EscalationLevel = 0 -> matches EscalatedOnly
+        var idCrit = Guid.NewGuid();
+        await SeedIssueAsync(
+            idCrit, detectorId, "Test Detector", "Critical Issue (Rank 4)", "CRIT-001",
+            currentSeverity: "Critical", severityRank: SeverityRank.Critical, escalationLevel: 0);
+
+        // 2. High issue with EscalationLevel = 1 -> matches EscalatedOnly
+        var idEscalatedHigh = Guid.NewGuid();
+        await SeedIssueAsync(
+            idEscalatedHigh, detectorId, "Test Detector", "Escalated High Issue", "ESC-HIGH-002",
+            currentSeverity: "High", severityRank: SeverityRank.High, escalationLevel: 1);
+
+        // 3. Normal High issue with EscalationLevel = 0 -> should NOT match EscalatedOnly
+        var idNormalHigh = Guid.NewGuid();
+        await SeedIssueAsync(
+            idNormalHigh, detectorId, "Test Detector", "Normal High Issue", "NORM-HIGH-003",
+            currentSeverity: "High", severityRank: SeverityRank.High, escalationLevel: 0);
+
+        // 4. Closed Resolved issue with EscalationLevel = 1 -> should NOT appear (feed is active issues only)
+        var idResolvedEscalated = Guid.NewGuid();
+        await SeedIssueAsync(
+            idResolvedEscalated, detectorId, "Test Detector", "Resolved Escalated Issue", "RES-ESC-004",
+            status: "Resolved", currentSeverity: "Critical", severityRank: SeverityRank.Critical,
+            escalationLevel: 1, resolvedAtUtc: DateTime.UtcNow);
+
+        // Act 1: Query with escalatedOnly=true
+        var responseEscalated = await client.GetAsync("/api/issues/dashboard-feed?escalatedOnly=true");
+        responseEscalated.StatusCode.Should().Be(HttpStatusCode.OK);
+        var bodyEscalated = await responseEscalated.Content.ReadFromJsonAsync<GetDashboardFeedResponse>(JsonOptions);
+
+        // Assert 1: Only active critical/escalated issues returned
+        bodyEscalated.Should().NotBeNull();
+        bodyEscalated!.Summary.EscalatedCount.Should().Be(2);
+        bodyEscalated.Items.Select(x => x.Id).Should().BeEquivalentTo(new[] { idCrit, idEscalatedHigh });
+
+        // Act 2: Query without escalatedOnly filter
+        var responseAll = await client.GetAsync("/api/issues/dashboard-feed");
+        responseAll.StatusCode.Should().Be(HttpStatusCode.OK);
+        var bodyAll = await responseAll.Content.ReadFromJsonAsync<GetDashboardFeedResponse>(JsonOptions);
+
+        // Assert 2: All active issues returned
+        bodyAll.Should().NotBeNull();
+        bodyAll!.Summary.EscalatedCount.Should().Be(2);
+        bodyAll.Items.Select(x => x.Id).Should().Contain(new[] { idCrit, idEscalatedHigh, idNormalHigh });
+        bodyAll.Items.Should().NotContain(x => x.Id == idResolvedEscalated);
     }
 }

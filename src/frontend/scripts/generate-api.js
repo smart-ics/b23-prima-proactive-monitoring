@@ -54,11 +54,35 @@ export type OfficerRole = 'EdpOfficer' | 'SystemAnalyst' | 'Lead';
 export type MonitoringScope = 'DataIntegrity' | 'ProcessIntegrity' | 'DataSync' | 'Infrastructure';
 export type IssueSeverity = 'Low' | 'Medium' | 'High' | 'Critical';
 export type IssueStatus = 'Open' | 'Acknowledged' | 'Investigating' | 'Resolved' | 'Dismissed' | 'Reopened';
-export type TriggerSource = 'Scheduled' | 'Manual' | 'EventHook';
+export type TriggerSource = 'Scheduled' | 'Manual' | 'EventHook' | 'AutomatedReRun';
 export type TelemetryOutcome = 'Passed' | 'FindingDiscovered' | 'ExecutionFailed';
 export type RemediationActionCategory = 'DataCorrection' | 'ServiceRestart' | 'ConfigurationAdjustment' | 'CodeRemediationRequested';
 export type DismissalReason = 'FalsePositive' | 'AcceptedOperationalException' | 'DuplicateManualReport';
-export type VerificationMethod = 'ManualVerification' | 'AutomatedSupervisor' | 'TelemetryRecurrence';
+export type VerificationMethod = 'ManualVerification' | 'AutomatedSupervisor' | 'TelemetryRecurrence' | 'AutomatedReRun';
+
+// Stage 3 Detector Management & Telemetry Types
+export type DetectorListItemDto = components["schemas"]["DetectorListItemDto"];
+export type DetectorSummaryDto = components["schemas"]["DetectorSummaryDto"];
+export type DetectorDetailDto = components["schemas"]["DetectorDetailDto"];
+export type DetectorReliabilityStatsDto = components["schemas"]["DetectorReliabilityStatsDto"];
+export type RecentRunSummaryDto = components["schemas"]["RecentRunSummaryDto"];
+export type LinkedActiveIssueDto = components["schemas"]["LinkedActiveIssueDto"];
+export type InspectionRunLogResponse = components["schemas"]["InspectionRunLogResponse"];
+export type InspectionRunDetailDto = components["schemas"]["InspectionRunDetailDto"];
+export type RegisterDetectorRequest = components["schemas"]["RegisterDetectorRequest"];
+export type UpdateDetectorRequest = components["schemas"]["UpdateDetectorRequest"];
+export type ToggleDetectorStatusRequest = components["schemas"]["ToggleDetectorStatusRequest"];
+export type InspectionRunResultDto = components["schemas"]["InspectionRunResultDto"];
+export type VerificationResultDto = components["schemas"]["VerificationResultDto"];
+
+export type DetectorHealth = 'Healthy' | 'Degraded' | 'Failing' | 'Silent';
+export type AdminStatus = 'Active' | 'Paused' | 'Retired';
+
+// Stage 4 Historical Reliability Analytics & Reporting Types
+export type ReliabilityKpiResponse = components["schemas"]["ReliabilityKpiResponse"];
+export type BreakdownItemDto = components["schemas"]["BreakdownItemDto"];
+export type HistoricalIssuesResponse = components["schemas"]["HistoricalIssuesResponse"];
+export type HistoricalIssueItemDto = components["schemas"]["HistoricalIssueItemDto"];
 `;
 
 appendFileSync(outputPath, typeAliases, 'utf8');

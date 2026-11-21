@@ -10,6 +10,7 @@ const filters = ref<DashboardFilterState>({
   severity: 'All',
   scope: 'All',
   search: '',
+  escalatedOnly: false,
 });
 
 const { data, isPending, isFetching, refetch } = useDashboardFeed(filters);
@@ -22,6 +23,7 @@ const isFiltered = computed(() => {
     filters.value.status !== 'All' ||
     filters.value.severity !== 'All' ||
     filters.value.scope !== 'All' ||
+    Boolean(filters.value.escalatedOnly) ||
     Boolean(filters.value.search && filters.value.search.trim().length > 0)
   );
 });
@@ -32,6 +34,7 @@ function handleResetFilters() {
     severity: 'All',
     scope: 'All',
     search: '',
+    escalatedOnly: false,
   };
 }
 
@@ -49,6 +52,10 @@ function handleScopeFilter(scope: string) {
 
 function handleSearchFilter(search: string) {
   filters.value.search = search;
+}
+
+function handleEscalatedFilter(escalatedOnly: boolean) {
+  filters.value.escalatedOnly = escalatedOnly;
 }
 </script>
 
@@ -85,24 +92,23 @@ function handleSearchFilter(search: string) {
       </div>
     </div>
 
-    <!-- Conditional Recurrence Notification Strip -->
+    <!-- Conditional Top Alert Strip (G-1) -->
     <div
-      v-if="summary && summary.reopenedCount > 0"
-      class="bg-purple-50 border border-purple-200 text-purple-900 rounded-lg px-4 py-2.5 flex items-center justify-between text-xs font-medium shadow-2xs"
+      v-if="summary && ((summary.escalatedCount ?? 0) > 0 || (summary.reopenedCount ?? 0) > 0)"
+      class="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg px-4 py-2.5 flex items-center justify-between text-xs font-medium shadow-2xs"
     >
       <div class="flex items-center gap-2">
-        <i class="pi pi-info-circle text-purple-600 text-sm"></i>
+        <i class="pi pi-exclamation-triangle text-amber-600 text-sm"></i>
         <span>
-          <strong>{{ summary.reopenedCount }}</strong>
-          {{ summary.reopenedCount === 1 ? 'issue has' : 'issues have' }} reopened after prior resolution (BR-PRIMA-002 auto-reopening).
+          ⚠ {{ summary.escalatedCount ?? 0 }} issues escalated · {{ summary.reopenedCount ?? 0 }} issues reopened
         </span>
       </div>
       <button
         type="button"
-        @click="handleStatusFilter('Reopened')"
-        class="text-xs font-semibold text-purple-700 hover:text-purple-900 underline underline-offset-2 cursor-pointer ml-3 shrink-0"
+        @click="handleEscalatedFilter(true)"
+        class="text-xs font-semibold text-amber-800 hover:text-amber-950 underline underline-offset-2 cursor-pointer ml-3 shrink-0"
       >
-        View Reopened →
+        Filter Escalated →
       </button>
     </div>
 
@@ -121,10 +127,12 @@ function handleSearchFilter(search: string) {
       :severity="filters.severity"
       :scope="filters.scope"
       :search="filters.search"
+      :escalated-only="filters.escalatedOnly"
       @update:status="handleStatusFilter"
       @update:severity="handleSeverityFilter"
       @update:scope="handleScopeFilter"
       @update:search="handleSearchFilter"
+      @update:escalated-only="handleEscalatedFilter"
       @reset="handleResetFilters"
     />
 

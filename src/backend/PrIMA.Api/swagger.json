@@ -56,6 +56,726 @@
         }
       }
     },
+    "/api/detectors": {
+      "get": {
+        "tags": [
+          "Detectors"
+        ],
+        "summary": "Get detector portfolio list",
+        "operationId": "GetDetectors",
+        "parameters": [
+          {
+            "name": "Scope",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "AdminStatus",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "HealthStatus",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DetectorListItemDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Detectors"
+        ],
+        "summary": "Register a new inspection detector",
+        "operationId": "RegisterDetector",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDetectorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectorDetailDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/detectors/summary": {
+      "get": {
+        "tags": [
+          "Detectors"
+        ],
+        "summary": "Get detector portfolio health summary counts",
+        "operationId": "GetDetectorSummary",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectorSummaryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/detectors/{id}": {
+      "get": {
+        "tags": [
+          "Detectors"
+        ],
+        "summary": "Get composite detector detail by ID",
+        "operationId": "GetDetectorById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectorDetailDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Detectors"
+        ],
+        "summary": "Update detector configuration (name is immutable)",
+        "operationId": "UpdateDetector",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDetectorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/detectors/{id}/runs": {
+      "get": {
+        "tags": [
+          "Detectors"
+        ],
+        "summary": "Get historical inspection runs for a detector",
+        "operationId": "GetInspectionRuns",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "StartDateUtc",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "EndDateUtc",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "Outcome",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "TriggerSource",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "Offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectionRunLogResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/detectors/{id}/toggle-status": {
+      "post": {
+        "tags": [
+          "Detectors"
+        ],
+        "summary": "Transition detector administrative lifecycle state (Pause, Resume, Retire)",
+        "operationId": "ToggleDetectorStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToggleDetectorStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/detectors/{id}/trigger-run": {
+      "post": {
+        "tags": [
+          "Detectors"
+        ],
+        "summary": "Trigger an immediate manual inspection run for a detector",
+        "operationId": "TriggerManualRun",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectionRunResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Gateway Timeout",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/history/reliability-kpi": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "summary": "Get period-close historical reliability KPI metrics and Scope/Severity breakdowns",
+        "operationId": "GetReliabilityKpi",
+        "parameters": [
+          {
+            "name": "FromUtc",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "ToUtc",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReliabilityKpiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/history/issues": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "summary": "Get filterable historical issue ledger with status-aware lifecycle date filtering",
+        "operationId": "GetHistoricalIssues",
+        "parameters": [
+          {
+            "name": "FromUtc",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "ToUtc",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "Status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Scope",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "DetectorId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Severity",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoricalIssuesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/ingestion/telemetry": {
       "post": {
         "tags": [
@@ -131,6 +851,7 @@
         "tags": [
           "Issues"
         ],
+        "summary": "Get active issue dashboard feed with operational counters and multi-attribute filters",
         "operationId": "GetDashboardFeed",
         "parameters": [
           {
@@ -159,6 +880,13 @@
             "in": "query",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "EscalatedOnly",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -720,6 +1448,88 @@
         }
       }
     },
+    "/api/issues/{id}/verification/trigger-run": {
+      "post": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "Trigger an automated probe re-run to verify issue remediation",
+        "operationId": "TriggerVerificationRun",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Gateway Timeout",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/issues/{id}/resolve": {
       "post": {
         "tags": [
@@ -938,9 +1748,32 @@
         },
         "additionalProperties": false
       },
+      "BreakdownItemDto": {
+        "required": [
+          "category",
+          "count",
+          "percentage"
+        ],
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "percentage": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
       "DashboardFeedSummaryDto": {
         "required": [
           "criticalCount",
+          "escalatedCount",
           "highCount",
           "openCount",
           "reopenedCount",
@@ -965,6 +1798,221 @@
             "format": "int32"
           },
           "resolvedTodayCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "escalatedCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DetectorDetailDto": {
+        "required": [
+          "activeIssues",
+          "adminStatus",
+          "createdAtUtc",
+          "description",
+          "expectedCadenceSeconds",
+          "healthStatus",
+          "id",
+          "name",
+          "recentRuns",
+          "reliabilityStats",
+          "scope",
+          "targetModule"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "targetModule": {
+            "type": "string"
+          },
+          "expectedCadenceSeconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "webhookUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "adminStatus": {
+            "type": "string"
+          },
+          "healthStatus": {
+            "type": "string"
+          },
+          "lastRunAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastHealthyHeartbeatUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reliabilityStats": {
+            "$ref": "#/components/schemas/DetectorReliabilityStatsDto"
+          },
+          "recentRuns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecentRunSummaryDto"
+            }
+          },
+          "activeIssues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkedActiveIssueDto"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "DetectorListItemDto": {
+        "required": [
+          "activeIssuesCount",
+          "adminStatus",
+          "description",
+          "expectedCadenceSeconds",
+          "healthStatus",
+          "id",
+          "name",
+          "passRate30d",
+          "scope",
+          "targetModule",
+          "totalRuns30d"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "targetModule": {
+            "type": "string"
+          },
+          "expectedCadenceSeconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "webhookUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "adminStatus": {
+            "type": "string"
+          },
+          "healthStatus": {
+            "type": "string"
+          },
+          "lastRunAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastHealthyHeartbeatUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "passRate30d": {
+            "type": "number",
+            "format": "double"
+          },
+          "totalRuns30d": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "activeIssuesCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DetectorReliabilityStatsDto": {
+        "required": [
+          "passRate30d",
+          "totalRuns30d"
+        ],
+        "type": "object",
+        "properties": {
+          "lastSuccessfulRunAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastFailureAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "totalRuns30d": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "passRate30d": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DetectorSummaryDto": {
+        "required": [
+          "failingCount",
+          "healthyCount",
+          "pausedCount",
+          "silentCount",
+          "totalCount"
+        ],
+        "type": "object",
+        "properties": {
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "healthyCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failingCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "silentCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pausedCount": {
             "type": "integer",
             "format": "int32"
           }
@@ -1139,6 +2187,122 @@
         },
         "additionalProperties": false
       },
+      "HistoricalIssueItemDto": {
+        "required": [
+          "correlationKey",
+          "createdAtUtc",
+          "currentSeverity",
+          "detectorId",
+          "detectorName",
+          "escalationLevel",
+          "id",
+          "lastOccurrenceAtUtc",
+          "occurrenceCount",
+          "scope",
+          "severityRank",
+          "status",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "correlationKey": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "detectorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "detectorName": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "currentSeverity": {
+            "type": "string"
+          },
+          "severityRank": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "string"
+          },
+          "escalationLevel": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "occurrenceCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "currentAssignee": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resolvedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "dismissedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "reopenedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "acknowledgedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastOccurrenceAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "HistoricalIssuesResponse": {
+        "required": [
+          "clampedLimit",
+          "items",
+          "totalReturned"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HistoricalIssueItemDto"
+            }
+          },
+          "totalReturned": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "clampedLimit": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "HttpValidationProblemDetails": {
         "required": [
           "errors"
@@ -1224,9 +2388,12 @@
         "required": [
           "detectorId",
           "inspectionRunId",
+          "newIssuesCreated",
           "outcome",
           "processedFindingsCount",
-          "results"
+          "recurrencesRecorded",
+          "results",
+          "totalFindingsProcessed"
         ],
         "type": "object",
         "properties": {
@@ -1245,11 +2412,127 @@
             "type": "integer",
             "format": "int32"
           },
+          "totalFindingsProcessed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "newIssuesCreated": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "recurrencesRecorded": {
+            "type": "integer",
+            "format": "int32"
+          },
           "results": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/FindingResultItem"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "InspectionRunDetailDto": {
+        "required": [
+          "detectorId",
+          "discoveredIssueIds",
+          "durationMs",
+          "executionTimestampUtc",
+          "findingsCount",
+          "id",
+          "outcome",
+          "triggerSource"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "detectorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "executionTimestampUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "triggerSource": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failureReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "findingsCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "discoveredIssueIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "InspectionRunLogResponse": {
+        "required": [
+          "runs",
+          "totalCount"
+        ],
+        "type": "object",
+        "properties": {
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InspectionRunDetailDto"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "InspectionRunResultDto": {
+        "required": [
+          "durationMs",
+          "findingsCount",
+          "outcome",
+          "runId"
+        ],
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failureReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "findingsCount": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false
@@ -1663,6 +2946,55 @@
         },
         "additionalProperties": false
       },
+      "LinkedActiveIssueDto": {
+        "required": [
+          "correlationKey",
+          "currentSeverity",
+          "escalationLevel",
+          "id",
+          "lastOccurrenceAtUtc",
+          "occurrenceCount",
+          "severityRank",
+          "status",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "correlationKey": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "currentSeverity": {
+            "type": "string"
+          },
+          "severityRank": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "string"
+          },
+          "escalationLevel": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "occurrenceCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastOccurrenceAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
       "LoginRequest": {
         "required": [
           "password",
@@ -1847,6 +3179,46 @@
         },
         "additionalProperties": { }
       },
+      "RecentRunSummaryDto": {
+        "required": [
+          "durationMs",
+          "executionTimestampUtc",
+          "findingsCount",
+          "id",
+          "outcome",
+          "triggerSource"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "executionTimestampUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "triggerSource": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failureReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "findingsCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "RecordManualVerificationRequest": {
         "required": [
           "cleanPassed",
@@ -1875,6 +3247,91 @@
           },
           "summaryDescription": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RegisterDetectorRequest": {
+        "required": [
+          "description",
+          "expectedCadenceSeconds",
+          "name",
+          "scope",
+          "targetModule"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "targetModule": {
+            "type": "string"
+          },
+          "expectedCadenceSeconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "webhookUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReliabilityKpiResponse": {
+        "required": [
+          "detectorPassRatePercentage",
+          "reopenedIssuesCount",
+          "resolutionRatePercentage",
+          "scopeBreakdown",
+          "severityBreakdown",
+          "totalIssuesCreated"
+        ],
+        "type": "object",
+        "properties": {
+          "totalIssuesCreated": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "resolutionRatePercentage": {
+            "type": "number",
+            "format": "double"
+          },
+          "avgTimeToAcknowledgeHours": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "avgTimeToResolveHours": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "detectorPassRatePercentage": {
+            "type": "number",
+            "format": "double"
+          },
+          "reopenedIssuesCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "scopeBreakdown": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BreakdownItemDto"
+            }
+          },
+          "severityBreakdown": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BreakdownItemDto"
+            }
           }
         },
         "additionalProperties": false
@@ -1918,6 +3375,47 @@
         },
         "additionalProperties": false
       },
+      "ToggleDetectorStatusRequest": {
+        "required": [
+          "action"
+        ],
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateDetectorRequest": {
+        "required": [
+          "description",
+          "expectedCadenceSeconds",
+          "scope",
+          "targetModule"
+        ],
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "targetModule": {
+            "type": "string"
+          },
+          "expectedCadenceSeconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "webhookUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "VerificationRecordDto": {
         "required": [
           "cleanPassed",
@@ -1956,6 +3454,54 @@
             "format": "date-time"
           },
           "isSuperseded": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "VerificationResultDto": {
+        "required": [
+          "cleanPassed",
+          "evidenceNotes",
+          "gateUnlocked",
+          "issueId",
+          "runId",
+          "timestampUtc",
+          "verificationId",
+          "verificationMethod",
+          "verifiedBy"
+        ],
+        "type": "object",
+        "properties": {
+          "verificationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "issueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "runId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "verificationMethod": {
+            "type": "string"
+          },
+          "cleanPassed": {
+            "type": "boolean"
+          },
+          "evidenceNotes": {
+            "type": "string"
+          },
+          "verifiedBy": {
+            "type": "string"
+          },
+          "timestampUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "gateUnlocked": {
             "type": "boolean"
           }
         },

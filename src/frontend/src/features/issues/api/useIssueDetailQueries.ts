@@ -8,10 +8,12 @@ import {
 import http from '@/shared/api/http';
 import type {
   IssueDetailDto,
+  DetectorDetailDto,
   OfficerDto,
   NoteDto,
   RemediationActionCategory,
   DismissalReason,
+  VerificationResultDto,
 } from '@/shared/types/api.generated';
 import { issueDetailKeys } from './issueDetail.keys';
 
@@ -62,6 +64,23 @@ export function useIssueDetailQuery(id: MaybeRef<string>) {
     refetchInterval: 10_000,
     refetchOnWindowFocus: true,
     staleTime: 5_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Local detector detail lookup for S-02 webhook capability without cross-slice imports.
+ */
+export function useIssueDetectorDetailQuery(id: MaybeRef<string>) {
+  return useQuery<DetectorDetailDto, Error>({
+    queryKey: computed(() => issueDetailKeys.detectorDetail(id)),
+    queryFn: async () => {
+      const detectorId = unref(id);
+      const response = await http.get<DetectorDetailDto>(`/detectors/${detectorId}`);
+      return response.data;
+    },
+    enabled: computed(() => !!unref(id)),
+    staleTime: 7_500,
     placeholderData: keepPreviousData,
   });
 }
@@ -238,6 +257,29 @@ export function useResolveIssueMutation() {
       queryClient.invalidateQueries({ queryKey: issueDetailKeys.detail(issueId) });
       queryClient.invalidateQueries({ queryKey: ['dashboard', 'feed'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-feed'] });
+    },
+  });
+}
+
+/**
+ * Mutation composable for triggering an automated webhook probe re-run (D-2).
+ * Evaluates probe findings and unlocks Verification Gate on clean pass (BR-PRIMA-004).
+ */
+export function useTriggerVerificationRunMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (issueId: string) => {
+      const response = await http.post<VerificationResultDto>(
+        `/issues/${issueId}/verification/trigger-run`
+      );
+      return response.data;
+    },
+    onSuccess: (_data, issueId) => {
+      queryClient.invalidateQueries({ queryKey: issueDetailKeys.detail(issueId) });
+      queryClient.invalidateQueries({ queryKey: ['dashboard', 'feed'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-feed'] });
+      queryClient.invalidateQueries({ queryKey: ['detectors'] });
     },
   });
 }

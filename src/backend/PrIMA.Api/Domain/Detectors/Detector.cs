@@ -1,3 +1,5 @@
+using PrIMA.Api.Common;
+
 namespace PrIMA.Api.Domain.Detectors;
 
 public sealed class Detector
@@ -48,7 +50,7 @@ public sealed class Detector
         Scope = scope;
         TargetModule = targetModule.Trim();
         ExpectedCadenceSeconds = expectedCadenceSeconds;
-        WebhookUrl = webhookUrl?.Trim();
+        WebhookUrl = string.IsNullOrWhiteSpace(webhookUrl) ? null : webhookUrl.Trim();
         AdminStatus = adminStatus;
         HealthStatus = healthStatus;
         LastRunAtUtc = lastRunAtUtc;
@@ -80,6 +82,85 @@ public sealed class Detector
             createdAtUtc: createdAtUtc ?? DateTime.UtcNow);
     }
 
+    public Result UpdateConfiguration(
+        string description,
+        MonitoringScope scope,
+        string targetModule,
+        int expectedCadenceSeconds,
+        string? webhookUrl)
+    {
+        if (IsRetired)
+            return Result.Failure(DetectorErrors.CannotModifyRetiredDetector);
+
+        if (string.IsNullOrWhiteSpace(description))
+            return Result.Failure(DetectorErrors.EmptyDescription);
+
+        if (string.IsNullOrWhiteSpace(targetModule))
+            return Result.Failure(DetectorErrors.EmptyTargetModule);
+
+        if (expectedCadenceSeconds <= 0)
+            return Result.Failure(DetectorErrors.InvalidCadence);
+
+        Description = description.Trim();
+        Scope = scope;
+        TargetModule = targetModule.Trim();
+        ExpectedCadenceSeconds = expectedCadenceSeconds;
+        WebhookUrl = string.IsNullOrWhiteSpace(webhookUrl) ? null : webhookUrl.Trim();
+        return Result.Success();
+    }
+
+    public Result Pause()
+    {
+        if (IsRetired) return Result.Failure(DetectorErrors.CannotModifyRetiredDetector);
+        if (IsPaused) return Result.Failure(DetectorErrors.AlreadyPaused);
+
+        AdminStatus = AdminStatus.Paused;
+        return Result.Success();
+    }
+
+    public Result Resume()
+    {
+        if (IsRetired) return Result.Failure(DetectorErrors.CannotModifyRetiredDetector);
+        if (IsActive) return Result.Failure(DetectorErrors.AlreadyActive);
+
+        AdminStatus = AdminStatus.Active;
+        return Result.Success();
+    }
+
+    public Result Retire()
+    {
+        if (IsRetired) return Result.Failure(DetectorErrors.AlreadyRetired);
+
+        AdminStatus = AdminStatus.Retired;
+        return Result.Success();
+    }
+
+    public bool IsSilenceThresholdExceeded(DateTime currentUtc)
+    {
+        if (!IsActive) return false;
+        var baseline = LastHealthyHeartbeatUtc ?? CreatedAtUtc;
+        var elapsed = (currentUtc - baseline).TotalSeconds;
+        return elapsed > (ExpectedCadenceSeconds * 2.0);
+    }
+
+    public void MarkSilent(DateTime timestampUtc)
+    {
+        HealthStatus = DetectorHealth.Silent;
+    }
+
+    public void MarkFailing(DateTime timestampUtc)
+    {
+        LastRunAtUtc = timestampUtc;
+        HealthStatus = DetectorHealth.Failing;
+    }
+
+    public void RecordSuccessfulRun(DateTime timestampUtc)
+    {
+        LastRunAtUtc = timestampUtc;
+        LastHealthyHeartbeatUtc = timestampUtc;
+        HealthStatus = DetectorHealth.Healthy;
+    }
+
     public void RecordHeartbeat(DateTime timestamp, DetectorHealth health)
     {
         if (IsRetired)
@@ -94,30 +175,5 @@ public sealed class Detector
         {
             LastHealthyHeartbeatUtc = timestamp;
         }
-    }
-
-    public void Pause()
-    {
-        if (IsRetired)
-        {
-            throw new InvalidOperationException($"Cannot pause retired detector '{Name}' ({Id}).");
-        }
-
-        AdminStatus = AdminStatus.Paused;
-    }
-
-    public void Resume()
-    {
-        if (IsRetired)
-        {
-            throw new InvalidOperationException($"Cannot resume retired detector '{Name}' ({Id}).");
-        }
-
-        AdminStatus = AdminStatus.Active;
-    }
-
-    public void Retire()
-    {
-        AdminStatus = AdminStatus.Retired;
     }
 }

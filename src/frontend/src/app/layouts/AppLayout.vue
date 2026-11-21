@@ -3,9 +3,26 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, RouterLink, RouterView } from 'vue-router';
 import { useAuthStore } from '@/app/stores/auth.store';
 import { activeIssuesCount } from '@/shared/composables/useAppMetrics';
+import { useDetectorSummaryQuery } from '@/features/detectors/api/useDetectorQueries';
 
 const route = useRoute();
 const authStore = useAuthStore();
+
+// Detector Summary Polling (15s polling per DEC-010)
+const { data: detectorSummary } = useDetectorSummaryQuery();
+
+const detectorAlertCount = computed(() => {
+  if (!detectorSummary.value) return 0;
+  return (detectorSummary.value.failingCount ?? 0) + (detectorSummary.value.silentCount ?? 0);
+});
+
+const isDetectorRoute = computed(() => {
+  return route.path.startsWith('/detectors');
+});
+
+const isHistoryRoute = computed(() => {
+  return route.path.startsWith('/history');
+});
 
 // Live WIB Clock (UTC+7 / Asia/Jakarta)
 const currentTimeWib = ref<string>('');
@@ -94,7 +111,7 @@ function handleLogout() {
         <div>
           <div class="flex items-center gap-2">
             <span class="font-bold text-slate-900 text-base leading-none">PrIMA</span>
-            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-semibold">Stage 1</span>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-semibold">v1.0-rc</span>
           </div>
           <p class="text-[11px] text-slate-500 leading-none mt-0.5 hidden sm:block">Proactive Inspection Monitoring App</p>
         </div>
@@ -170,35 +187,65 @@ function handleLogout() {
             </span>
           </RouterLink>
 
-          <!-- 2. Detectors (Disabled in Stage 1 - Coming in Stage 3) -->
-          <div
-            v-tooltip.right="'Coming in Stage 3'"
-            aria-disabled="true"
-            class="flex items-center justify-between px-3 py-2 rounded-md text-sm text-slate-400 opacity-60 cursor-not-allowed select-none hover:bg-transparent"
+          <!-- 2. Detectors (Stage 3 Enabled) -->
+          <RouterLink
+            to="/detectors"
+            class="flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors"
+            :class="[
+              isDetectorRoute
+                ? 'bg-slate-900 text-white font-medium shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            ]"
           >
             <div class="flex items-center gap-2.5">
               <i class="pi pi-shield text-sm"></i>
               <span>Detectors</span>
             </div>
-            <span class="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-400 border border-slate-200">
-              Stage 3
-            </span>
-          </div>
+            <!-- Alert Indicator Dot & Badge when (FailingCount + SilentCount) > 0 -->
+            <div class="flex items-center gap-1.5">
+              <span
+                v-if="detectorAlertCount > 0"
+                class="relative flex h-2.5 w-2.5"
+                :title="`${detectorAlertCount} unhealthy detector(s) require attention`"
+              >
+                <span
+                  class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                  :class="detectorSummary?.failingCount ? 'bg-rose-400' : 'bg-amber-400'"
+                ></span>
+                <span
+                  class="relative inline-flex rounded-full h-2.5 w-2.5"
+                  :class="detectorSummary?.failingCount ? 'bg-rose-500' : 'bg-amber-500'"
+                ></span>
+              </span>
+              <span
+                v-if="detectorAlertCount > 0"
+                class="text-[11px] font-mono px-1.5 py-0.2 rounded-full font-bold"
+                :class="[
+                  isDetectorRoute
+                    ? (detectorSummary?.failingCount ? 'bg-rose-500 text-white' : 'bg-amber-500 text-white')
+                    : (detectorSummary?.failingCount ? 'bg-rose-100 text-rose-700 border border-rose-200' : 'bg-amber-100 text-amber-800 border border-amber-200')
+                ]"
+              >
+                {{ detectorAlertCount }}
+              </span>
+            </div>
+          </RouterLink>
 
-          <!-- 3. History & Reports (Disabled in Stage 1 - Coming in Stage 4) -->
-          <div
-            v-tooltip.right="'Coming in Stage 4'"
-            aria-disabled="true"
-            class="flex items-center justify-between px-3 py-2 rounded-md text-sm text-slate-400 opacity-60 cursor-not-allowed select-none hover:bg-transparent"
+          <!-- 3. History & Reports (Stage 4 Enabled) -->
+          <RouterLink
+            to="/history"
+            class="flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors"
+            :class="[
+              isHistoryRoute
+                ? 'bg-slate-900 text-white font-medium shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            ]"
           >
             <div class="flex items-center gap-2.5">
               <i class="pi pi-history text-sm"></i>
               <span>History & Reports</span>
             </div>
-            <span class="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-400 border border-slate-200">
-              Stage 4
-            </span>
-          </div>
+          </RouterLink>
         </nav>
 
         <!-- Sidebar Footer: Environment & Connection Status -->
@@ -240,7 +287,7 @@ function handleLogout() {
           Operational
         </span>
         <span>&middot;</span>
-        <span class="font-mono text-[10px] text-slate-400">v1.0-stage1</span>
+        <span class="font-mono text-[10px] text-slate-400">v1.0-rc</span>
       </div>
     </footer>
   </div>

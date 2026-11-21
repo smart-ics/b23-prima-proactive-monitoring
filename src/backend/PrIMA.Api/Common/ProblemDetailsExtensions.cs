@@ -59,6 +59,8 @@ public static class ProblemDetailsExtensions
         StatusCodes.Status409Conflict => "Conflict",
         StatusCodes.Status422UnprocessableEntity => "Unprocessable Entity",
         StatusCodes.Status500InternalServerError => "Internal Server Error",
+        StatusCodes.Status502BadGateway => "Bad Gateway",
+        StatusCodes.Status504GatewayTimeout => "Gateway Timeout",
         _ => "An error occurred"
     };
 }

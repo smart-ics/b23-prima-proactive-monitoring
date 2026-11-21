@@ -3,10 +3,23 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using PrIMA.Api.BackgroundServices;
 using PrIMA.Api.Common;
 using PrIMA.Api.Domain.Detectors;
 using PrIMA.Api.Domain.Issues;
 using PrIMA.Api.Features.Auth;
+using PrIMA.Api.Features.Detectors;
+using PrIMA.Api.Features.Detectors.GetDetectorById;
+using PrIMA.Api.Features.Detectors.GetDetectorList;
+using PrIMA.Api.Features.Detectors.GetDetectorSummary;
+using PrIMA.Api.Features.Detectors.GetInspectionRuns;
+using PrIMA.Api.Features.Detectors.RegisterDetector;
+using PrIMA.Api.Features.Detectors.ToggleDetectorStatus;
+using PrIMA.Api.Features.Detectors.TriggerManualRun;
+using PrIMA.Api.Features.Detectors.UpdateDetector;
+using PrIMA.Api.Features.History;
+using PrIMA.Api.Features.History.GetHistoricalIssues;
+using PrIMA.Api.Features.History.GetReliabilityKpi;
 using PrIMA.Api.Features.Ingestion;
 using PrIMA.Api.Features.Issues;
 using PrIMA.Api.Features.Issues.AcknowledgeIssue;
@@ -20,8 +33,10 @@ using PrIMA.Api.Features.Issues.RecordRemediation;
 using PrIMA.Api.Features.Issues.ResolveIssue;
 using PrIMA.Api.Features.Issues.StartInvestigation;
 using PrIMA.Api.Features.Issues.TakeIt;
+using PrIMA.Api.Features.Issues.TriggerVerificationRun;
 using PrIMA.Api.Features.Officers;
 using PrIMA.Api.Infrastructure.Persistence;
+using PrIMA.Api.Infrastructure.Webhooks;
 using PrIMA.Api.Migrations;
 using PrIMA.Api.Seeding;
 
@@ -33,6 +48,7 @@ var jwtSigningKey = builder.Configuration["Jwt:SigningKey"]
 
 // Service Registrations
 builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<BadHttpRequestExceptionHandler>();
 
 builder.Services.AddAuthentication(options =>
 {
@@ -127,6 +143,11 @@ builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 builder.Services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
 builder.Services.AddScoped<IDetectorRepository, DetectorRepository>();
 builder.Services.AddScoped<IIssueRepository, IssueRepository>();
+builder.Services.AddHttpClient<IDetectorWebhookClient, DetectorWebhookClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("PrIMA-Supervisor/1.0");
+});
 builder.Services.AddScoped<ApiKeyEndpointFilter>();
 builder.Services.AddScoped<LoginHandler>();
 builder.Services.AddScoped<IngestTelemetryHandler>();
@@ -142,7 +163,19 @@ builder.Services.AddScoped<RecordRemediationHandler>();
 builder.Services.AddScoped<RecordManualVerificationHandler>();
 builder.Services.AddScoped<ResolveIssueHandler>();
 builder.Services.AddScoped<DismissIssueHandler>();
+builder.Services.AddScoped<GetDetectorListHandler>();
+builder.Services.AddScoped<GetDetectorSummaryHandler>();
+builder.Services.AddScoped<GetDetectorByIdHandler>();
+builder.Services.AddScoped<GetInspectionRunsHandler>();
+builder.Services.AddScoped<RegisterDetectorHandler>();
+builder.Services.AddScoped<UpdateDetectorHandler>();
+builder.Services.AddScoped<ToggleDetectorStatusHandler>();
+builder.Services.AddScoped<TriggerManualRunHandler>();
+builder.Services.AddScoped<TriggerVerificationRunHandler>();
+builder.Services.AddScoped<GetReliabilityKpiHandler>();
+builder.Services.AddScoped<GetHistoricalIssuesHandler>();
 builder.Services.AddScoped<DevelopmentDemoDataSeeder>();
+builder.Services.AddHostedService<MonitoringSupervisorWorker>();
 
 var app = builder.Build();
 
@@ -180,6 +213,8 @@ app.MapIngestTelemetryEndpoint();
 app.MapGetDashboardFeedEndpoint();
 app.MapOfficerEndpoints();
 app.MapIssueLifecycleEndpoints();
+app.MapDetectorEndpoints();
+app.MapHistoryEndpoints();
 
 // Execute Database Migrations
 var connectionString = app.Configuration.GetConnectionString("PrIMADb")
@@ -212,5 +247,29 @@ public sealed class RequireNonNullablePropertiesSchemaFilter : Swashbuckle.AspNe
                 schema.Required.Add(property.Key);
             }
         }
+    }
+}
+
+public sealed class BadHttpRequestExceptionHandler : Microsoft.AspNetCore.Diagnostics.IExceptionHandler
+{
+    public async ValueTask<bool> TryHandleAsync(
+        HttpContext httpContext,
+        Exception exception,
+        CancellationToken cancellationToken)
+    {
+        if (exception is not BadHttpRequestException badHttpRequestException)
+        {
+            return false;
+        }
+
+        var problemDetails = badHttpRequestException.ToProblemDetails(httpContext);
+        httpContext.Response.StatusCode = problemDetails.Status ?? StatusCodes.Status400BadRequest;
+        await httpContext.Response.WriteAsJsonAsync(
+            problemDetails,
+            options: null,
+            contentType: "application/problem+json",
+            cancellationToken: cancellationToken);
+
+        return true;
     }
 }

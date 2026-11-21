@@ -30,12 +30,15 @@ public class PrIMAApiFactory : WebApplicationFactory<Program>
                 ["Jwt:ExpirationHours"] = "12",
                 ["Ingestion:ApiKeys:0"] = TestApiKey,
                 ["OperationalTimeZone"] = "Asia/Jakarta",
-                ["SeedDemoData"] = "false"
+                ["SeedDemoData"] = "false",
+                ["Supervisor:PollingIntervalSeconds"] = "3600"
             });
         });
     }
 
     public IDbConnection CreateDbConnection() => new SqlConnection(TestConnectionString);
+    public IDbConnection CreateConnection() => CreateDbConnection();
+    public IDbConnection GetConnection() => CreateDbConnection();
 
     public async Task ExecuteSqlAsync(string sql, object? param = null)
     {
@@ -58,17 +61,19 @@ public class PrIMAApiFactory : WebApplicationFactory<Program>
     public async Task ResetDatabaseAsync()
     {
         const string cleanupSql = """
-            DELETE FROM dbo.IssueActivityLogs;
-            DELETE FROM dbo.InvestigationNotes;
-            DELETE FROM dbo.Occurrences;
-            DELETE FROM dbo.RemediationRecords;
-            DELETE FROM dbo.VerificationRecords;
-            DELETE FROM dbo.DismissalRecords;
-            DELETE FROM dbo.Issues;
-            DELETE FROM dbo.InspectionRuns;
-            DELETE FROM dbo.Detectors;
+            BEGIN TRANSACTION;
+            DELETE FROM dbo.IssueActivityLogs WITH (TABLOCKX);
+            DELETE FROM dbo.InvestigationNotes WITH (TABLOCKX);
+            DELETE FROM dbo.Occurrences WITH (TABLOCKX);
+            DELETE FROM dbo.RemediationRecords WITH (TABLOCKX);
+            DELETE FROM dbo.VerificationRecords WITH (TABLOCKX);
+            DELETE FROM dbo.DismissalRecords WITH (TABLOCKX);
+            DELETE FROM dbo.Issues WITH (TABLOCKX);
+            DELETE FROM dbo.InspectionRuns WITH (TABLOCKX);
+            DELETE FROM dbo.Detectors WITH (TABLOCKX);
             DELETE FROM dbo.Officers WHERE Username NOT IN ('ahmad.budi', 'siti.rahma', 'edp.lead');
             UPDATE dbo.Officers SET IsActive = 1 WHERE Username IN ('ahmad.budi', 'siti.rahma', 'edp.lead');
+            COMMIT TRANSACTION;
             """;
 
         for (var attempt = 1; attempt <= 5; attempt++)
@@ -79,9 +84,9 @@ public class PrIMAApiFactory : WebApplicationFactory<Program>
                 await conn.ExecuteAsync(cleanupSql);
                 return;
             }
-            catch (SqlException ex) when (ex.Number == 1205 && attempt < 5)
+            catch (SqlException) when (attempt < 5)
             {
-                await Task.Delay(100 * attempt);
+                await Task.Delay(150 * attempt);
             }
         }
     }

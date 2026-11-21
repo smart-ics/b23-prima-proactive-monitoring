@@ -26,6 +26,42 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/features/issues/views/IssueDetailView.vue'),
         meta: { requiresAuth: true, title: 'Issue Detail - PrIMA' },
       },
+      {
+        path: 'detectors',
+        name: 'detectors',
+        component: () => import('@/features/detectors/views/DetectorListView.vue'),
+        meta: { requiresAuth: true, title: 'Detector Portfolio - PrIMA' },
+      },
+      {
+        path: 'detectors/new',
+        name: 'detector-create',
+        component: () => import('@/features/detectors/views/DetectorFormView.vue'),
+        meta: { requiresAuth: true, title: 'Register Detector - PrIMA' },
+      },
+      {
+        path: 'detectors/:id',
+        name: 'detector-detail',
+        component: () => import('@/features/detectors/views/DetectorDetailView.vue'),
+        meta: { requiresAuth: true, title: 'Detector Detail - PrIMA' },
+      },
+      {
+        path: 'detectors/:id/edit',
+        name: 'detector-edit',
+        component: () => import('@/features/detectors/views/DetectorFormView.vue'),
+        meta: { requiresAuth: true, title: 'Edit Detector - PrIMA' },
+      },
+      {
+        path: 'detectors/:id/runs',
+        name: 'detector-runs',
+        component: () => import('@/features/detectors/views/InspectionRunLogView.vue'),
+        meta: { requiresAuth: true, title: 'Inspection Run Log - PrIMA' },
+      },
+      {
+        path: 'history',
+        name: 'history',
+        component: () => import('@/features/history/views/HistoryView.vue'),
+        meta: { requiresAuth: true, title: 'History & Reports - PrIMA' },
+      },
     ],
   },
   {

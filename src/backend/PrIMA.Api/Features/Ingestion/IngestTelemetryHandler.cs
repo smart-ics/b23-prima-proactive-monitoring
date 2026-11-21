@@ -30,7 +30,7 @@ public sealed class IngestTelemetryHandler
         ArgumentNullException.ThrowIfNull(request);
 
         // Guardrail 1: Detector existence
-        var detector = await _detectorRepository.GetByIdAsync(request.DetectorId, conn: null, tx: null, cancellationToken: cancellationToken);
+        var detector = await _detectorRepository.GetByIdAsync(request.DetectorId, transaction: null, cancellationToken: cancellationToken);
         if (detector is null)
         {
             return Result<IngestTelemetryResponse>.Failure(DetectorErrors.NotFound(request.DetectorId));
@@ -61,6 +61,14 @@ public sealed class IngestTelemetryHandler
 
         try
         {
+            var lockedDetector = await _detectorRepository.LockDetectorForUpdateAsync(detector.Id, connection, transaction, cancellationToken) ?? detector;
+            if (lockedDetector.AdminStatus is AdminStatus.Paused or AdminStatus.Retired)
+            {
+                transaction.Rollback();
+                return Result<IngestTelemetryResponse>.Failure(
+                    DomainError.Conflict("Detectors.NotActive", "Detector is not active."));
+            }
+
             var triggerSource = Enum.Parse<TriggerSource>(request.TriggerSource, true);
             var outcome = Enum.Parse<InspectionOutcome>(request.Outcome, true);
 
@@ -73,16 +81,242 @@ public sealed class IngestTelemetryHandler
                 request.FailureReason);
 
             // Record InspectionRun
-            await _detectorRepository.InsertInspectionRunAsync(inspectionRun, connection, transaction, cancellationToken);
+            await _detectorRepository.RecordInspectionRunAsync(inspectionRun, connection, transaction, cancellationToken);
 
-            // Update detector liveness
-            await _detectorRepository.UpdateLivenessAsync(
+            if (outcome == InspectionOutcome.ExecutionFailed)
+            {
+                // Updates detector HealthStatus = DetectorHealth.Failing via _detectorRepository.UpdateHealthAndHeartbeatAsync
+                await _detectorRepository.UpdateHealthAndHeartbeatAsync(
+                    detector.Id,
+                    DetectorHealth.Failing,
+                    lastRunUtc: request.ExecutionTimestampUtc,
+                    lastHealthyUtc: null,
+                    connection,
+                    transaction,
+                    cancellationToken);
+
+                // Infrastructure anomaly correlation (BR-PRIMA-005):
+                var failCorrelationKey = $"FAIL:{detector.Id}";
+                var existingFailIssue = await _issueRepository.FindByCorrelationKeyWithLockAsync(
+                    failCorrelationKey,
+                    connection,
+                    transaction,
+                    cancellationToken);
+
+                var isNew = existingFailIssue is null;
+                var failureTrace = request.FailureReason ?? "Detector reported execution failure.";
+                var evidence = new TelemetryEvidence(
+                    module: string.IsNullOrWhiteSpace(detector.TargetModule) ? "System" : detector.TargetModule,
+                    trace: failureTrace);
+
+                var failResults = new List<FindingResultItem>();
+
+                if (existingFailIssue is null)
+                {
+                    var correlationKey = CorrelationKey.FromCanonical(failCorrelationKey);
+                    var title = $"Execution Failure: {detector.Name}";
+                    if (title.Length > 250)
+                    {
+                        title = title[..250];
+                    }
+
+                    var newIssue = Issue.Create(
+                        correlationKey,
+                        title,
+                        detector.Id,
+                        detector.Name,
+                        MonitoringScope.Infrastructure,
+                        IssueSeverity.High,
+                        inspectionRun.Id,
+                        evidence,
+                        request.ExecutionTimestampUtc);
+
+                    try
+                    {
+                        await _issueRepository.InsertIssueAsync(newIssue, connection, transaction, cancellationToken);
+                        await _issueRepository.InsertOccurrenceAsync(newIssue.Occurrences[0], connection, transaction, cancellationToken);
+
+                        await _issueRepository.InsertActivityLogAsync(
+                            connection,
+                            transaction,
+                            newIssue.Id,
+                            "Created",
+                            "System",
+                            $"Initial anomaly discovered: {newIssue.Title} ({newIssue.BaseSeverity}).",
+                            detailsJson: null,
+                            cancellationToken: cancellationToken);
+
+                        failResults.Add(new FindingResultItem
+                        {
+                            CorrelationKey = failCorrelationKey,
+                            IssueId = newIssue.Id,
+                            Action = "Created",
+                            OccurrenceId = newIssue.Occurrences[0].Id,
+                            OccurrenceNumber = 1
+                        });
+                    }
+                    catch (SqlException ex) when (ex.Number is 2601 or 2627)
+                    {
+                        // Concurrency race: lookup retry with lock
+                        existingFailIssue = await _issueRepository.FindByCorrelationKeyWithLockAsync(
+                            failCorrelationKey,
+                            connection,
+                            transaction,
+                            cancellationToken);
+
+                        if (existingFailIssue is null)
+                        {
+                            throw;
+                        }
+
+                        isNew = false;
+                        var occurrence = existingFailIssue.RecordRecurringOccurrence(inspectionRun.Id, evidence, request.ExecutionTimestampUtc);
+                        if (existingFailIssue.IsClosed)
+                        {
+                            await _issueRepository.ReopenIssueAsync(existingFailIssue, connection, transaction, cancellationToken);
+                        }
+                        else
+                        {
+                            await _issueRepository.UpdateRecurringIssueAsync(existingFailIssue, connection, transaction, cancellationToken);
+                            if (existingFailIssue.Status == IssueStatus.Investigating)
+                            {
+                                await _issueRepository.SupersedeActiveVerificationsAsync(existingFailIssue.Id, connection, transaction, cancellationToken);
+                            }
+                        }
+
+                        await _issueRepository.InsertOccurrenceAsync(occurrence, connection, transaction, cancellationToken);
+                        await _issueRepository.InsertActivityLogAsync(
+                            connection,
+                            transaction,
+                            existingFailIssue.Id,
+                            "RecurrenceObserved",
+                            "System",
+                            $"Detector execution failure recurred (Occurrence #{occurrence.OccurrenceNumber}).",
+                            detailsJson: null,
+                            cancellationToken: cancellationToken);
+
+                        failResults.Add(new FindingResultItem
+                        {
+                            CorrelationKey = failCorrelationKey,
+                            IssueId = existingFailIssue.Id,
+                            Action = existingFailIssue.IsClosed ? "Reopened" : "Appended",
+                            OccurrenceId = occurrence.Id,
+                            OccurrenceNumber = occurrence.OccurrenceNumber
+                        });
+                    }
+                }
+                else
+                {
+                    var occurrence = existingFailIssue.RecordRecurringOccurrence(inspectionRun.Id, evidence, request.ExecutionTimestampUtc);
+                    if (existingFailIssue.IsClosed)
+                    {
+                        await _issueRepository.ReopenIssueAsync(existingFailIssue, connection, transaction, cancellationToken);
+                    }
+                    else
+                    {
+                        await _issueRepository.UpdateRecurringIssueAsync(existingFailIssue, connection, transaction, cancellationToken);
+                        if (existingFailIssue.Status == IssueStatus.Investigating)
+                        {
+                            await _issueRepository.SupersedeActiveVerificationsAsync(existingFailIssue.Id, connection, transaction, cancellationToken);
+                        }
+                    }
+
+                    await _issueRepository.InsertOccurrenceAsync(occurrence, connection, transaction, cancellationToken);
+                    await _issueRepository.InsertActivityLogAsync(
+                        connection,
+                        transaction,
+                        existingFailIssue.Id,
+                        "RecurrenceObserved",
+                        "System",
+                        $"Detector execution failure recurred (Occurrence #{occurrence.OccurrenceNumber}).",
+                        detailsJson: null,
+                        cancellationToken: cancellationToken);
+
+                    failResults.Add(new FindingResultItem
+                    {
+                        CorrelationKey = failCorrelationKey,
+                        IssueId = existingFailIssue.Id,
+                        Action = existingFailIssue.IsClosed ? "Reopened" : "Appended",
+                        OccurrenceId = occurrence.Id,
+                        OccurrenceNumber = occurrence.OccurrenceNumber
+                    });
+                }
+
+                transaction.Commit();
+
+                var failResponse = new TelemetryIngestionResponseDto
+                {
+                    InspectionRunId = inspectionRun.Id,
+                    DetectorId = detector.Id,
+                    Outcome = request.Outcome,
+                    ProcessedFindingsCount = 0,
+                    TotalFindingsProcessed = 0,
+                    NewIssuesCreated = isNew ? 1 : 0,
+                    RecurrencesRecorded = isNew ? 0 : 1,
+                    Results = failResults
+                };
+
+                return Result<IngestTelemetryResponse>.Success(failResponse);
+            }
+
+            // Outcome is Passed or FindingDiscovered
+            var wasFailingOrSilent = (lockedDetector.HealthStatus is DetectorHealth.Silent or DetectorHealth.Failing)
+                || (detector.HealthStatus is DetectorHealth.Silent or DetectorHealth.Failing);
+
+            // Resets HealthStatus = DetectorHealth.Healthy, updates LastHealthyHeartbeatUtc = request.ExecutionTimestampUtc
+            await _detectorRepository.UpdateHealthAndHeartbeatAsync(
                 detector.Id,
-                request.ExecutionTimestampUtc,
                 DetectorHealth.Healthy,
+                lastRunUtc: request.ExecutionTimestampUtc,
+                lastHealthyUtc: request.ExecutionTimestampUtc,
                 connection,
                 transaction,
                 cancellationToken);
+
+            if (wasFailingOrSilent)
+            {
+                // DEC-004: Queries active issues matching SILENT:{detector.Id} or FAIL:{detector.Id}
+                var silentKey = $"SILENT:{detector.Id}";
+                var failKey = $"FAIL:{detector.Id}";
+
+                var silentIssue = await _issueRepository.FindByCorrelationKeyWithLockAsync(
+                    silentKey,
+                    connection,
+                    transaction,
+                    cancellationToken);
+
+                if (silentIssue is not null && silentIssue.IsActive)
+                {
+                    await _issueRepository.InsertActivityLogAsync(
+                        connection,
+                        transaction,
+                        silentIssue.Id,
+                        "DetectorRecovered",
+                        "System",
+                        $"Detector resumed healthy reporting via run '{inspectionRun.Id}'. Issue remains open for EDP verification.",
+                        detailsJson: null,
+                        cancellationToken: cancellationToken);
+                }
+
+                var failIssue = await _issueRepository.FindByCorrelationKeyWithLockAsync(
+                    failKey,
+                    connection,
+                    transaction,
+                    cancellationToken);
+
+                if (failIssue is not null && failIssue.IsActive)
+                {
+                    await _issueRepository.InsertActivityLogAsync(
+                        connection,
+                        transaction,
+                        failIssue.Id,
+                        "DetectorRecovered",
+                        "System",
+                        $"Detector resumed healthy reporting via run '{inspectionRun.Id}'. Issue remains open for EDP verification.",
+                        detailsJson: null,
+                        cancellationToken: cancellationToken);
+                }
+            }
 
             var results = new List<FindingResultItem>();
 
@@ -188,12 +422,15 @@ public sealed class IngestTelemetryHandler
 
             transaction.Commit();
 
-            var response = new IngestTelemetryResponse
+            var response = new TelemetryIngestionResponseDto
             {
                 InspectionRunId = inspectionRun.Id,
                 DetectorId = detector.Id,
                 Outcome = request.Outcome,
                 ProcessedFindingsCount = results.Count,
+                TotalFindingsProcessed = results.Count,
+                NewIssuesCreated = results.Count(r => r.Action == "Created"),
+                RecurrencesRecorded = results.Count(r => r.Action is "Appended" or "Reopened"),
                 Results = results
             };
 

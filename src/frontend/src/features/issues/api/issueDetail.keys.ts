@@ -8,5 +8,6 @@ export const issueDetailKeys = {
   all: ['issues'] as const,
   details: () => [...issueDetailKeys.all, 'detail'] as const,
   detail: (id: MaybeRef<string>) => [...issueDetailKeys.details(), unref(id)] as const,
+  detectorDetail: (id: MaybeRef<string>) => [...issueDetailKeys.all, 'detector', unref(id)] as const,
   officers: () => ['officers'] as const,
 };

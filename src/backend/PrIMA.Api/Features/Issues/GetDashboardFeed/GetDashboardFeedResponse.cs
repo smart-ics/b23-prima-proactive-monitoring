@@ -5,7 +5,8 @@ public sealed record DashboardFeedSummaryDto(
     int HighCount,
     int OpenCount,
     int ReopenedCount,
-    int ResolvedTodayCount);
+    int ResolvedTodayCount,
+    int EscalatedCount);
 
 public sealed record GetDashboardFeedResponse(
     DashboardFeedSummaryDto Summary,

@@ -17,10 +17,10 @@ public sealed class DetectorRepository : IDetectorRepository
 
     public Task<Detector?> GetByIdAsync(Guid id, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
     {
-        return GetByIdAsync(id, transaction?.Connection, transaction, cancellationToken);
+        return GetByIdAsync(id, transaction?.Connection!, transaction, cancellationToken);
     }
 
-    public Task<Detector?> GetByIdAsync(Guid detectorId, IDbConnection? conn = null, IDbTransaction? tx = null, CancellationToken cancellationToken = default)
+    public Task<Detector?> GetByIdAsync(Guid id, IDbConnection? conn = null, IDbTransaction? tx = null, CancellationToken cancellationToken = default)
     {
         const string sql = """
             SELECT
@@ -33,13 +33,18 @@ public sealed class DetectorRepository : IDetectorRepository
         return ExecuteWithConnectionAsync(conn, tx, async (connection, transaction) =>
         {
             var row = await connection.QuerySingleOrDefaultAsync<DetectorRow>(
-                new CommandDefinition(sql, new { Id = detectorId }, transaction, cancellationToken: cancellationToken));
+                new CommandDefinition(sql, new { Id = id }, transaction, cancellationToken: cancellationToken));
 
             return row is null ? null : MapToDomain(row);
         });
     }
 
     public Task<Detector?> GetByNameAsync(string name, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        return GetByNameAsync(name, transaction?.Connection!, transaction, cancellationToken);
+    }
+
+    public Task<Detector?> GetByNameAsync(string name, IDbConnection conn, IDbTransaction? tx = null, CancellationToken cancellationToken = default)
     {
         const string sql = """
             SELECT
@@ -49,10 +54,10 @@ public sealed class DetectorRepository : IDetectorRepository
             WHERE Name = @Name;
             """;
 
-        return ExecuteWithConnectionAsync(transaction?.Connection, transaction, async (connection, tx) =>
+        return ExecuteWithConnectionAsync(conn, tx, async (connection, transaction) =>
         {
             var row = await connection.QuerySingleOrDefaultAsync<DetectorRow>(
-                new CommandDefinition(sql, new { Name = name.Trim() }, tx, cancellationToken: cancellationToken));
+                new CommandDefinition(sql, new { Name = name.Trim() }, transaction, cancellationToken: cancellationToken));
 
             return row is null ? null : MapToDomain(row);
         });
@@ -78,6 +83,11 @@ public sealed class DetectorRepository : IDetectorRepository
     }
 
     public Task InsertAsync(Detector detector, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
+    {
+        return InsertAsync(detector, transaction?.Connection!, transaction!, cancellationToken);
+    }
+
+    public Task InsertAsync(Detector detector, IDbConnection conn, IDbTransaction tx, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(detector);
 
@@ -107,8 +117,8 @@ public sealed class DetectorRepository : IDetectorRepository
             detector.CreatedAtUtc
         };
 
-        return ExecuteWithConnectionAsync(transaction?.Connection, transaction, (connection, tx) =>
-            connection.ExecuteAsync(new CommandDefinition(sql, parameters, tx, cancellationToken: cancellationToken)));
+        return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
+            connection.ExecuteAsync(new CommandDefinition(sql, parameters, transaction, cancellationToken: cancellationToken)));
     }
 
     public Task UpdateAsync(Detector detector, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
@@ -149,6 +159,141 @@ public sealed class DetectorRepository : IDetectorRepository
             connection.ExecuteAsync(new CommandDefinition(sql, parameters, tx, cancellationToken: cancellationToken)));
     }
 
+    public Task UpdateConfigurationAsync(Detector detector, IDbConnection conn, IDbTransaction tx, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(detector);
+
+        const string sql = """
+            UPDATE dbo.Detectors
+            SET Description = @Description,
+                Scope = @Scope,
+                TargetModule = @TargetModule,
+                ExpectedCadenceSeconds = @ExpectedCadenceSeconds,
+                WebhookUrl = @WebhookUrl
+            WHERE Id = @Id;
+            """;
+
+        var parameters = new
+        {
+            detector.Id,
+            detector.Description,
+            Scope = detector.Scope.ToString(),
+            detector.TargetModule,
+            detector.ExpectedCadenceSeconds,
+            detector.WebhookUrl
+        };
+
+        return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
+            connection.ExecuteAsync(new CommandDefinition(sql, parameters, transaction, cancellationToken: cancellationToken)));
+    }
+
+    public Task UpdateAdminStatusAsync(Guid id, AdminStatus status, IDbConnection conn, IDbTransaction tx, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            UPDATE dbo.Detectors
+            SET AdminStatus = @AdminStatus
+            WHERE Id = @Id;
+            """;
+
+        var parameters = new
+        {
+            Id = id,
+            AdminStatus = status.ToString()
+        };
+
+        return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
+            connection.ExecuteAsync(new CommandDefinition(sql, parameters, transaction, cancellationToken: cancellationToken)));
+    }
+
+    public Task UpdateHealthAndHeartbeatAsync(Guid id, DetectorHealth health, DateTime? lastRunUtc, DateTime? lastHealthyUtc, IDbConnection conn, IDbTransaction tx, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            UPDATE dbo.Detectors
+            SET HealthStatus = @HealthStatus,
+                LastRunAtUtc = COALESCE(@LastRunAtUtc, LastRunAtUtc),
+                LastHealthyHeartbeatUtc = COALESCE(@LastHealthyHeartbeatUtc, LastHealthyHeartbeatUtc)
+            WHERE Id = @Id;
+            """;
+
+        var parameters = new
+        {
+            Id = id,
+            HealthStatus = health.ToString(),
+            LastRunAtUtc = lastRunUtc,
+            LastHealthyHeartbeatUtc = lastHealthyUtc
+        };
+
+        return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
+            connection.ExecuteAsync(new CommandDefinition(sql, parameters, transaction, cancellationToken: cancellationToken)));
+    }
+
+    public Task<IReadOnlyList<Detector>> GetActiveSilentCandidatesAsync(DateTime silenceCutoffUtc, IDbConnection conn, IDbTransaction? tx = null, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            SELECT
+                Id, Name, Description, Scope, TargetModule, ExpectedCadenceSeconds,
+                WebhookUrl, AdminStatus, HealthStatus, LastRunAtUtc, LastHealthyHeartbeatUtc, CreatedAtUtc
+            FROM dbo.Detectors
+            WHERE AdminStatus = 'Active'
+              AND COALESCE(LastHealthyHeartbeatUtc, CreatedAtUtc) < @SilenceCutoffUtc;
+            """;
+
+        return ExecuteWithConnectionAsync(conn, tx, async (connection, transaction) =>
+        {
+            var rows = await connection.QueryAsync<DetectorRow>(
+                new CommandDefinition(sql, new { SilenceCutoffUtc = silenceCutoffUtc }, transaction, cancellationToken: cancellationToken));
+
+            return (IReadOnlyList<Detector>)rows.Select(MapToDomain).ToList();
+        });
+    }
+
+    public Task<Detector?> LockDetectorForUpdateAsync(Guid id, IDbConnection conn, IDbTransaction tx, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            SELECT
+                Id, Name, Description, Scope, TargetModule, ExpectedCadenceSeconds,
+                WebhookUrl, AdminStatus, HealthStatus, LastRunAtUtc, LastHealthyHeartbeatUtc, CreatedAtUtc
+            FROM dbo.Detectors WITH (UPDLOCK, ROWLOCK)
+            WHERE Id = @Id;
+            """;
+
+        return ExecuteWithConnectionAsync(conn, tx, async (connection, transaction) =>
+        {
+            var row = await connection.QuerySingleOrDefaultAsync<DetectorRow>(
+                new CommandDefinition(sql, new { Id = id }, transaction, cancellationToken: cancellationToken));
+
+            return row is null ? null : MapToDomain(row);
+        });
+    }
+
+    public Task RecordInspectionRunAsync(InspectionRun run, IDbConnection conn, IDbTransaction tx, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+
+        const string sql = """
+            INSERT INTO dbo.InspectionRuns (
+                Id, DetectorId, ExecutionTimestampUtc, TriggerSource, Outcome, DurationMs, FailureReason, CreatedAtUtc
+            ) VALUES (
+                @Id, @DetectorId, @ExecutionTimestampUtc, @TriggerSource, @Outcome, @DurationMs, @FailureReason, @CreatedAtUtc
+            );
+            """;
+
+        var parameters = new
+        {
+            run.Id,
+            run.DetectorId,
+            run.ExecutionTimestampUtc,
+            TriggerSource = run.TriggerSource.ToString(),
+            Outcome = run.Outcome.ToString(),
+            run.DurationMs,
+            run.FailureReason,
+            run.CreatedAtUtc
+        };
+
+        return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
+            connection.ExecuteAsync(new CommandDefinition(sql, parameters, transaction, cancellationToken: cancellationToken)));
+    }
+
     public Task UpdateLivenessAsync(Guid id, DateTime lastRunAtUtc, DetectorHealth health, IDbTransaction? transaction = null, CancellationToken cancellationToken = default)
     {
         return UpdateLivenessAsync(id, lastRunAtUtc, health, transaction?.Connection, transaction, cancellationToken);
@@ -182,30 +327,7 @@ public sealed class DetectorRepository : IDetectorRepository
 
     public Task InsertInspectionRunAsync(InspectionRun run, IDbConnection? conn = null, IDbTransaction? tx = null, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(run);
-
-        const string sql = """
-            INSERT INTO dbo.InspectionRuns (
-                Id, DetectorId, ExecutionTimestampUtc, TriggerSource, Outcome, DurationMs, FailureReason, CreatedAtUtc
-            ) VALUES (
-                @Id, @DetectorId, @ExecutionTimestampUtc, @TriggerSource, @Outcome, @DurationMs, @FailureReason, @CreatedAtUtc
-            );
-            """;
-
-        var parameters = new
-        {
-            run.Id,
-            run.DetectorId,
-            run.ExecutionTimestampUtc,
-            TriggerSource = run.TriggerSource.ToString(),
-            Outcome = run.Outcome.ToString(),
-            run.DurationMs,
-            run.FailureReason,
-            run.CreatedAtUtc
-        };
-
-        return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
-            connection.ExecuteAsync(new CommandDefinition(sql, parameters, transaction, cancellationToken: cancellationToken)));
+        return RecordInspectionRunAsync(run, conn!, tx!, cancellationToken);
     }
 
     private async Task<T> ExecuteWithConnectionAsync<T>(

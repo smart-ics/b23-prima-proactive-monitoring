@@ -28,9 +28,7 @@ public sealed class IngestTelemetryValidator : AbstractValidator<IngestTelemetry
             .NotEmpty()
             .WithMessage("Outcome is required.")
             .Must(o => o is "Passed" or "FindingDiscovered" or "ExecutionFailed")
-            .WithMessage("Outcome must be one of: Passed, FindingDiscovered, ExecutionFailed.")
-            .Must(o => o != "ExecutionFailed")
-            .WithMessage("ExecutionFailed outcome is supported in Stage 3 with infrastructure anomaly synthesis.");
+            .WithMessage("Outcome must be one of: Passed, FindingDiscovered, ExecutionFailed.");
 
         RuleFor(x => x.DurationMs)
             .GreaterThanOrEqualTo(0)
@@ -41,6 +39,18 @@ public sealed class IngestTelemetryValidator : AbstractValidator<IngestTelemetry
             RuleFor(x => x.Findings)
                 .Must(f => f == null || f.Count == 0)
                 .WithMessage("Findings must be null or empty when outcome is 'Passed'.");
+        });
+
+        When(x => x.Outcome == "ExecutionFailed", () =>
+        {
+            RuleFor(x => x.Findings)
+                .Must(f => f == null || f.Count == 0)
+                .WithMessage("Findings must be null or empty when outcome is 'ExecutionFailed'.");
+
+            RuleFor(x => x.FailureReason)
+                .MaximumLength(1000)
+                .When(x => x.FailureReason != null)
+                .WithMessage("Failure reason cannot exceed 1000 characters.");
         });
 
         When(x => x.Outcome == "FindingDiscovered", () =>

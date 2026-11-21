@@ -23,6 +23,27 @@ public sealed class DevelopmentDemoDataSeeder
     public static readonly Guid PrescriptionDetectorId = Guid.Parse("a5f8b912-3c4d-4e5f-6a7b-8c9d0e1f2a3b");
     public static readonly Guid ReplicationDetectorId = Guid.Parse("b6a9c023-4d5e-5f6a-7b8c-9d0e1f2a3b4c");
     public static readonly Guid LaboratoryDetectorId = Guid.Parse("c7b0d134-5e6f-6a7b-8c9d-0e1f2a3b4c5d");
+    public static readonly Guid RetiredDetectorId = Guid.Parse("f8c1e245-6f7a-7b8c-9d0e-1f2a3b4c5d6e");
+
+    // Failing Infrastructure Issue & Run
+    public static readonly Guid ReplicationFailingIssueId = Guid.Parse("d0555555-5555-5555-5555-555555555591");
+    public static readonly Guid ReplicationFailingRunId = Guid.Parse("d0555555-5555-5555-5555-555555555592");
+    public static readonly Guid ReplicationFailingOccurrenceId = Guid.Parse("d0555555-5555-5555-5555-555555555593");
+
+    // Silent Infrastructure Issue & Run
+    public static readonly Guid AdmissionSilentIssueId = Guid.Parse("d0222222-2222-2222-2222-222222222291");
+    public static readonly Guid AdmissionSilentRunId = Guid.Parse("d0222222-2222-2222-2222-222222222292");
+    public static readonly Guid AdmissionSilentOccurrenceId = Guid.Parse("d0222222-2222-2222-2222-222222222293");
+
+    // Retired Detector Active Issue (DEC-009)
+    public static readonly Guid RetiredDetectorIssueId = Guid.Parse("d0888888-8888-8888-8888-888888888801");
+    public static readonly Guid RetiredDetectorRunId = Guid.Parse("d0888888-8888-8888-8888-888888888802");
+    public static readonly Guid RetiredDetectorOccurrenceId = Guid.Parse("d0888888-8888-8888-8888-888888888803");
+
+    // Escalated Issue (EscalationLevel = 2, Severity = Critical)
+    public static readonly Guid EscalatedIssueId = Guid.Parse("d0999999-9999-9999-9999-999999999901");
+    public static readonly Guid EscalatedInspectionRunId = Guid.Parse("d0999999-9999-9999-9999-999999999902");
+    public static readonly Guid EscalatedOccurrenceId = Guid.Parse("d0999999-9999-9999-9999-999999999903");
 
     // Deterministic Seeded Issue Constants
     public const string OpenEntityReference = "BILL-2026-OPEN-001";
@@ -77,6 +98,15 @@ public sealed class DevelopmentDemoDataSeeder
     public static readonly Guid DismissedInspectionRunId = Guid.Parse("d0222222-2222-2222-2222-222222222202");
     public static readonly Guid DismissedOccurrenceId = Guid.Parse("d0222222-2222-2222-2222-222222222203");
     public static readonly Guid DismissedRecordId = Guid.Parse("d0222222-2222-2222-2222-222222222204");
+
+    // 8. Stage 4 Historical Reporting Cohorts (Resolved Today/Last Week, Dismissed Last Week, Reopened, Open)
+    public static readonly Guid ResolvedTodayProcessIssueId = Guid.Parse("d0a10001-0000-0000-0000-000000000001");
+    public static readonly Guid ResolvedLastWeekPharmacyIssueId = Guid.Parse("d0a10002-0000-0000-0000-000000000001");
+    public static readonly Guid ResolvedLastWeekInfraIssueId = Guid.Parse("d0a10003-0000-0000-0000-000000000001");
+    public static readonly Guid DismissedLastWeekIssueId = Guid.Parse("d0a20001-0000-0000-0000-000000000001");
+    public static readonly Guid ReopenedTodayIssueId = Guid.Parse("d0a30001-0000-0000-0000-000000000001");
+    public static readonly Guid ReopenedLastWeekIssueId = Guid.Parse("d0a30002-0000-0000-0000-000000000001");
+    public static readonly Guid OpenHistoricalLabIssueId = Guid.Parse("d0a40001-0000-0000-0000-000000000001");
 
     // Reusable Idempotent SQL Statements
     private const string RunSql = """
@@ -226,29 +256,48 @@ public sealed class DevelopmentDemoDataSeeder
             var localStartOfToday = localNow.Date;
             var startOfTodayWibUtc = TimeZoneInfo.ConvertTimeToUtc(localStartOfToday, operationalTimeZone);
 
-            // 1. Seed Detectors Portfolio
+            // 1. Seed Detectors Portfolio (Active+Healthy, Active+Silent, Active+Failing, Paused, Retired)
             await SeedDetectorsAsync(connection, transaction, nowUtc);
 
-            // 2. Seed Open Issue (Unassigned)
+            // 2. Seed Historical Inspection Runs (at least 32 runs per detector covering Passed, FindingDiscovered, ExecutionFailed)
+            await SeedHistoricalRunsAsync(connection, transaction, nowUtc);
+
+            // 3. Seed Failing Detector Infrastructure Issue (FAIL:{id})
+            await SeedFailingDetectorInfrastructureIssueAsync(connection, transaction, nowUtc);
+
+            // 4. Seed Silent Detector Infrastructure Issue (SILENT:{id})
+            await SeedSilentDetectorInfrastructureIssueAsync(connection, transaction, nowUtc);
+
+            // 5. Seed Retired Detector Active Issue (DEC-009)
+            await SeedRetiredDetectorActiveIssueAsync(connection, transaction, nowUtc);
+
+            // 6. Seed Escalated Issue (EscalationLevel = 2, Severity = Critical, SeverityEscalated activity logs)
+            await SeedEscalatedIssueAsync(connection, transaction, nowUtc);
+
+            // 7. Seed Open Issue (Unassigned)
             await SeedOpenIssueAsync(connection, transaction, nowUtc);
 
-            // 3. Seed Acknowledged Issue (Assigned to siti.rahma with notes and audit trail)
+            // 8. Seed Acknowledged Issue (Assigned to siti.rahma with notes and audit trail)
             await SeedAcknowledgedIssueAsync(connection, transaction, nowUtc);
 
-            // 4. Seed Investigating Issue (Assigned to ahmad.budi, remediation recorded, awaiting verification)
+            // 9. Seed Investigating Issue (Assigned to ahmad.budi, remediation recorded, awaiting verification)
             await SeedInvestigatingAwaitingVerificationIssueAsync(connection, transaction, nowUtc);
 
-            // 5. Seed Investigating Issue (Failed verification CleanPassed = false)
+            // 10. Seed Investigating Issue (Failed verification CleanPassed = false)
             await SeedInvestigatingFailedVerificationIssueAsync(connection, transaction, nowUtc);
 
-            // 6. Seed Investigating Issue (Clean verification CleanPassed = true, ready for resolution)
+            // 11. Seed Investigating Issue (Clean verification CleanPassed = true, ready for resolution)
             await SeedInvestigatingCleanVerificationIssueAsync(connection, transaction, nowUtc);
 
-            // 7. Seed Resolved Issue (With clean verification, remediation, and activity logs)
+            // 12. Seed Resolved Issue (With clean verification, remediation, and activity logs)
             await SeedResolvedIssueAsync(connection, transaction, nowUtc, startOfTodayWibUtc);
 
-            // 8. Seed Dismissed Issue (With valid dismissal justification BR-PRIMA-006 and activity logs)
+            // 13. Seed Dismissed Issue (With valid dismissal justification BR-PRIMA-006 and activity logs)
             await SeedDismissedIssueAsync(connection, transaction, nowUtc);
+
+            // 14. Seed Today WIB Inspection Runs & Historical Multi-Cohort Issues (Stage 4 Analytics)
+            await SeedTodayInspectionRunsAsync(connection, transaction, nowUtc, startOfTodayWibUtc);
+            await SeedHistoricalCohortIssuesAsync(connection, transaction, nowUtc, startOfTodayWibUtc);
 
             transaction.Commit();
             _logger.LogInformation("Development demo data seeding completed successfully.");
@@ -259,6 +308,15 @@ public sealed class DevelopmentDemoDataSeeder
             _logger.LogError(ex, "Failed to seed development demo data.");
             throw;
         }
+    }
+
+    public static Guid CreateDeterministicRunId(Guid detectorId, int runIndex)
+    {
+        var bytes = detectorId.ToByteArray();
+        bytes[0] = 0xEE;
+        bytes[14] = (byte)((runIndex >> 8) & 0xFF);
+        bytes[15] = (byte)(runIndex & 0xFF);
+        return new Guid(bytes);
     }
 
     private static async Task SeedDetectorsAsync(IDbConnection connection, IDbTransaction transaction, DateTime nowUtc)
@@ -275,6 +333,21 @@ public sealed class DevelopmentDemoDataSeeder
                     @WebhookUrl, @AdminStatus, @HealthStatus, @LastRunAtUtc, @LastHealthyHeartbeatUtc, @CreatedAtUtc
                 );
             END
+            ELSE
+            BEGIN
+                UPDATE dbo.Detectors
+                SET Name = @Name,
+                    Description = @Description,
+                    Scope = @Scope,
+                    TargetModule = @TargetModule,
+                    ExpectedCadenceSeconds = @ExpectedCadenceSeconds,
+                    WebhookUrl = @WebhookUrl,
+                    AdminStatus = @AdminStatus,
+                    HealthStatus = @HealthStatus,
+                    LastRunAtUtc = @LastRunAtUtc,
+                    LastHealthyHeartbeatUtc = @LastHealthyHeartbeatUtc
+                WHERE Id = @Id;
+            END
             """;
 
         var detectors = new[]
@@ -287,7 +360,7 @@ public sealed class DevelopmentDemoDataSeeder
                 Scope = MonitoringScope.DataIntegrity.ToString(),
                 TargetModule = "Billing",
                 ExpectedCadenceSeconds = 300,
-                WebhookUrl = (string?)null,
+                WebhookUrl = (string?)"https://probes.internal.hospital/api/detectors/billing",
                 AdminStatus = AdminStatus.Active.ToString(),
                 HealthStatus = DetectorHealth.Healthy.ToString(),
                 LastRunAtUtc = (DateTime?)nowUtc,
@@ -304,9 +377,9 @@ public sealed class DevelopmentDemoDataSeeder
                 ExpectedCadenceSeconds = 600,
                 WebhookUrl = (string?)null,
                 AdminStatus = AdminStatus.Active.ToString(),
-                HealthStatus = DetectorHealth.Healthy.ToString(),
-                LastRunAtUtc = (DateTime?)nowUtc,
-                LastHealthyHeartbeatUtc = (DateTime?)nowUtc,
+                HealthStatus = DetectorHealth.Silent.ToString(),
+                LastRunAtUtc = (DateTime?)nowUtc.AddMinutes(-40),
+                LastHealthyHeartbeatUtc = (DateTime?)nowUtc.AddMinutes(-40),
                 CreatedAtUtc = nowUtc.AddDays(-30)
             },
             new
@@ -332,11 +405,11 @@ public sealed class DevelopmentDemoDataSeeder
                 Scope = MonitoringScope.Infrastructure.ToString(),
                 TargetModule = "Database",
                 ExpectedCadenceSeconds = 60,
-                WebhookUrl = (string?)null,
+                WebhookUrl = (string?)"https://probes.internal.hospital/api/detectors/replication",
                 AdminStatus = AdminStatus.Active.ToString(),
-                HealthStatus = DetectorHealth.Healthy.ToString(),
-                LastRunAtUtc = (DateTime?)nowUtc,
-                LastHealthyHeartbeatUtc = (DateTime?)nowUtc,
+                HealthStatus = DetectorHealth.Failing.ToString(),
+                LastRunAtUtc = (DateTime?)nowUtc.AddMinutes(-5),
+                LastHealthyHeartbeatUtc = (DateTime?)nowUtc.AddMinutes(-15),
                 CreatedAtUtc = nowUtc.AddDays(-30)
             },
             new
@@ -347,12 +420,27 @@ public sealed class DevelopmentDemoDataSeeder
                 Scope = MonitoringScope.DataSync.ToString(),
                 TargetModule = "Laboratory",
                 ExpectedCadenceSeconds = 180,
-                WebhookUrl = (string?)null,
+                WebhookUrl = (string?)"https://probes.internal.hospital/api/detectors/laboratory",
                 AdminStatus = AdminStatus.Paused.ToString(),
                 HealthStatus = DetectorHealth.Healthy.ToString(),
                 LastRunAtUtc = (DateTime?)nowUtc.AddHours(-12),
                 LastHealthyHeartbeatUtc = (DateTime?)nowUtc.AddHours(-12),
                 CreatedAtUtc = nowUtc.AddDays(-30)
+            },
+            new
+            {
+                Id = RetiredDetectorId,
+                Name = "Legacy Bed Tracking Bridge",
+                Description = "Retired HL7 v2 ADT bed sensor feed superseded by integrated FHIR Encounter service.",
+                Scope = MonitoringScope.ProcessIntegrity.ToString(),
+                TargetModule = "Inpatient",
+                ExpectedCadenceSeconds = 300,
+                WebhookUrl = (string?)null,
+                AdminStatus = AdminStatus.Retired.ToString(),
+                HealthStatus = DetectorHealth.Healthy.ToString(),
+                LastRunAtUtc = (DateTime?)nowUtc.AddDays(-5),
+                LastHealthyHeartbeatUtc = (DateTime?)nowUtc.AddDays(-5),
+                CreatedAtUtc = nowUtc.AddDays(-60)
             }
         };
 
@@ -360,6 +448,495 @@ public sealed class DevelopmentDemoDataSeeder
         {
             await connection.ExecuteAsync(detectorSql, detector, transaction);
         }
+    }
+
+    private static async Task SeedHistoricalRunsAsync(
+        IDbConnection connection,
+        IDbTransaction transaction,
+        DateTime nowUtc)
+    {
+        var detectors = new[]
+        {
+            (Id: BillingDetectorId, Module: "Billing", CadenceSeconds: 300, IsRetired: false),
+            (Id: AdmissionDetectorId, Module: "Inpatient", CadenceSeconds: 600, IsRetired: false),
+            (Id: PrescriptionDetectorId, Module: "Pharmacy", CadenceSeconds: 300, IsRetired: false),
+            (Id: ReplicationDetectorId, Module: "Database", CadenceSeconds: 60, IsRetired: false),
+            (Id: LaboratoryDetectorId, Module: "Laboratory", CadenceSeconds: 180, IsRetired: false),
+            (Id: RetiredDetectorId, Module: "Inpatient", CadenceSeconds: 300, IsRetired: true)
+        };
+
+        foreach (var detector in detectors)
+        {
+            int totalRuns = (detector.Id == BillingDetectorId) ? 65 : 32;
+            for (int i = 1; i <= totalRuns; i++)
+            {
+                var runId = CreateDeterministicRunId(detector.Id, i);
+
+                DateTime runTime;
+                if (detector.IsRetired)
+                {
+                    runTime = nowUtc.AddDays(-28).AddHours(i * 17);
+                }
+                else if (detector.Id == BillingDetectorId)
+                {
+                    runTime = nowUtc.AddDays(-29).AddHours(i * 10.5);
+                }
+                else
+                {
+                    runTime = nowUtc.AddDays(-29).AddHours(i * 15.5);
+                }
+
+                InspectionOutcome outcome;
+                int durationMs;
+                string? failureReason = null;
+
+                if (detector.Id == BillingDetectorId)
+                {
+                    // High pass rate (> 90%) covering Passed, FindingDiscovered (from issues), and ExecutionFailed
+                    if (i == 10)
+                    {
+                        outcome = InspectionOutcome.ExecutionFailed;
+                        durationMs = 0;
+                        failureReason = "Temporary socket timeout connecting to billing ledger database.";
+                    }
+                    else
+                    {
+                        outcome = InspectionOutcome.Passed;
+                        durationMs = 120 + (i * 7) % 95;
+                    }
+                }
+                else if (detector.Id == ReplicationDetectorId)
+                {
+                    // Active Failing detector: recent runs fail
+                    if (i >= 27)
+                    {
+                        outcome = InspectionOutcome.ExecutionFailed;
+                        durationMs = 30000;
+                        failureReason = "Replication subscriber socket timeout on primary cluster node EMR-DB-PRIMARY.";
+                    }
+                    else if (i % 6 == 0)
+                    {
+                        outcome = InspectionOutcome.FindingDiscovered;
+                        durationMs = 240;
+                    }
+                    else
+                    {
+                        outcome = InspectionOutcome.Passed;
+                        durationMs = 95 + (i * 5) % 60;
+                    }
+                }
+                else if (detector.Id == AdmissionDetectorId)
+                {
+                    if (i == 8 || i == 20)
+                    {
+                        outcome = InspectionOutcome.ExecutionFailed;
+                        durationMs = 0;
+                        failureReason = "HL7 interface parser exception on malformed ADT^A03 packet.";
+                    }
+                    else if (i % 5 == 0)
+                    {
+                        outcome = InspectionOutcome.FindingDiscovered;
+                        durationMs = 310;
+                    }
+                    else
+                    {
+                        outcome = InspectionOutcome.Passed;
+                        durationMs = 140 + (i * 8) % 80;
+                    }
+                }
+                else if (detector.Id == LaboratoryDetectorId)
+                {
+                    if (i == 12)
+                    {
+                        outcome = InspectionOutcome.ExecutionFailed;
+                        durationMs = 0;
+                        failureReason = "Sysmex analyzer bridge returned HTTP 503 Service Unavailable.";
+                    }
+                    else if (i % 7 == 0)
+                    {
+                        outcome = InspectionOutcome.FindingDiscovered;
+                        durationMs = 420;
+                    }
+                    else
+                    {
+                        outcome = InspectionOutcome.Passed;
+                        durationMs = 180 + (i * 6) % 90;
+                    }
+                }
+                else if (detector.Id == RetiredDetectorId)
+                {
+                    if (i >= 30)
+                    {
+                        outcome = InspectionOutcome.ExecutionFailed;
+                        durationMs = 0;
+                        failureReason = "Legacy ADT feed discontinued by hospital infrastructure modernization.";
+                    }
+                    else if (i % 5 == 0)
+                    {
+                        outcome = InspectionOutcome.FindingDiscovered;
+                        durationMs = 290;
+                    }
+                    else
+                    {
+                        outcome = InspectionOutcome.Passed;
+                        durationMs = 150 + (i * 9) % 70;
+                    }
+                }
+                else
+                {
+                    // PrescriptionDetectorId
+                    if (i == 15)
+                    {
+                        outcome = InspectionOutcome.ExecutionFailed;
+                        durationMs = 0;
+                        failureReason = "Pharmacy dispense log locked by nightly maintenance batch.";
+                    }
+                    else if (i % 6 == 0)
+                    {
+                        outcome = InspectionOutcome.FindingDiscovered;
+                        durationMs = 330;
+                    }
+                    else
+                    {
+                        outcome = InspectionOutcome.Passed;
+                        durationMs = 110 + (i * 7) % 75;
+                    }
+                }
+
+                await connection.ExecuteAsync(RunSql, new
+                {
+                    Id = runId,
+                    DetectorId = detector.Id,
+                    ExecutionTimestampUtc = runTime,
+                    TriggerSource = (i % 8 == 0) ? TriggerSource.Manual.ToString() : TriggerSource.Scheduled.ToString(),
+                    Outcome = outcome.ToString(),
+                    DurationMs = durationMs,
+                    FailureReason = failureReason,
+                    CreatedAtUtc = runTime
+                }, transaction);
+            }
+        }
+    }
+
+    private static async Task SeedFailingDetectorInfrastructureIssueAsync(
+        IDbConnection connection,
+        IDbTransaction transaction,
+        DateTime nowUtc)
+    {
+        var discoveredAt = nowUtc.AddMinutes(-5);
+        var correlationKey = $"FAIL:{ReplicationDetectorId:D}";
+
+        await connection.ExecuteAsync(RunSql, new
+        {
+            Id = ReplicationFailingRunId,
+            DetectorId = ReplicationDetectorId,
+            ExecutionTimestampUtc = discoveredAt,
+            TriggerSource = TriggerSource.Scheduled.ToString(),
+            Outcome = InspectionOutcome.ExecutionFailed.ToString(),
+            DurationMs = 30000,
+            FailureReason = "Replication subscriber socket timeout on primary cluster node EMR-DB-PRIMARY.",
+            CreatedAtUtc = discoveredAt
+        }, transaction);
+
+        await connection.ExecuteAsync(IssueSql, new
+        {
+            Id = ReplicationFailingIssueId,
+            CorrelationKey = correlationKey,
+            Title = "Infrastructure Failure: EMR Database Replication Monitor execution failed",
+            DetectorId = ReplicationDetectorId,
+            DetectorName = "EMR Database Replication Monitor",
+            Scope = MonitoringScope.Infrastructure.ToString(),
+            BaseSeverity = IssueSeverity.High.ToString(),
+            CurrentSeverity = IssueSeverity.High.ToString(),
+            SeverityRank = (byte)SeverityRank.High,
+            Status = IssueStatus.Open.ToString(),
+            EscalationLevel = 0,
+            OccurrenceCount = 1,
+            CurrentAssignee = (string?)null,
+            CreatedAtUtc = discoveredAt,
+            LastOccurrenceAtUtc = discoveredAt,
+            AcknowledgedAtUtc = (DateTime?)null,
+            ResolvedAtUtc = (DateTime?)null,
+            DismissedAtUtc = (DateTime?)null,
+            ReopenedAtUtc = (DateTime?)null
+        }, transaction);
+
+        await connection.ExecuteAsync(OccurrenceSql, new
+        {
+            Id = ReplicationFailingOccurrenceId,
+            IssueId = ReplicationFailingIssueId,
+            InspectionRunId = ReplicationFailingRunId,
+            OccurrenceNumber = 1,
+            TimestampUtc = discoveredAt,
+            Module = "Database",
+            SourceTable = "sys.dm_hadr_database_replica_states",
+            RecordKeys = $"detector_id={ReplicationDetectorId}",
+            DebitTotal = (decimal?)null,
+            CreditTotal = (decimal?)null,
+            VarianceDelta = (decimal?)null,
+            TraceString = "Replication subscriber socket timeout on primary cluster node EMR-DB-PRIMARY."
+        }, transaction);
+
+        await connection.ExecuteAsync(ActivityLogSql, new
+        {
+            Id = Guid.Parse("d0555555-5555-5555-5555-555555555594"),
+            IssueId = ReplicationFailingIssueId,
+            ActivityType = "Created",
+            ActorName = "System",
+            TimestampUtc = discoveredAt,
+            Summary = "Initial anomaly discovered: Infrastructure Failure: EMR Database Replication Monitor execution failed (High).",
+            DetailsJson = (string?)null
+        }, transaction);
+    }
+
+    private static async Task SeedSilentDetectorInfrastructureIssueAsync(
+        IDbConnection connection,
+        IDbTransaction transaction,
+        DateTime nowUtc)
+    {
+        var discoveredAt = nowUtc.AddMinutes(-20);
+        var correlationKey = $"SILENT:{AdmissionDetectorId:D}";
+
+        await connection.ExecuteAsync(RunSql, new
+        {
+            Id = AdmissionSilentRunId,
+            DetectorId = AdmissionDetectorId,
+            ExecutionTimestampUtc = discoveredAt,
+            TriggerSource = TriggerSource.Scheduled.ToString(),
+            Outcome = InspectionOutcome.ExecutionFailed.ToString(),
+            DurationMs = 0,
+            FailureReason = "Detector 'Patient Admission Discharge Sync' missed heartbeat. Cadence: 600s. Threshold: 1200s.",
+            CreatedAtUtc = discoveredAt
+        }, transaction);
+
+        await connection.ExecuteAsync(IssueSql, new
+        {
+            Id = AdmissionSilentIssueId,
+            CorrelationKey = correlationKey,
+            Title = "Silent Detector: Patient Admission Discharge Sync has missed cadence",
+            DetectorId = AdmissionDetectorId,
+            DetectorName = "Patient Admission Discharge Sync",
+            Scope = MonitoringScope.Infrastructure.ToString(),
+            BaseSeverity = IssueSeverity.High.ToString(),
+            CurrentSeverity = IssueSeverity.High.ToString(),
+            SeverityRank = (byte)SeverityRank.High,
+            Status = IssueStatus.Open.ToString(),
+            EscalationLevel = 0,
+            OccurrenceCount = 1,
+            CurrentAssignee = (string?)null,
+            CreatedAtUtc = discoveredAt,
+            LastOccurrenceAtUtc = discoveredAt,
+            AcknowledgedAtUtc = (DateTime?)null,
+            ResolvedAtUtc = (DateTime?)null,
+            DismissedAtUtc = (DateTime?)null,
+            ReopenedAtUtc = (DateTime?)null
+        }, transaction);
+
+        await connection.ExecuteAsync(OccurrenceSql, new
+        {
+            Id = AdmissionSilentOccurrenceId,
+            IssueId = AdmissionSilentIssueId,
+            InspectionRunId = AdmissionSilentRunId,
+            OccurrenceNumber = 1,
+            TimestampUtc = discoveredAt,
+            Module = "Inpatient",
+            SourceTable = "Detectors",
+            RecordKeys = $"detector_id={AdmissionDetectorId}",
+            DebitTotal = (decimal?)null,
+            CreditTotal = (decimal?)null,
+            VarianceDelta = (decimal?)null,
+            TraceString = "Detector 'Patient Admission Discharge Sync' missed heartbeat. Cadence: 600s. Threshold: 1200s."
+        }, transaction);
+
+        await connection.ExecuteAsync(ActivityLogSql, new
+        {
+            Id = Guid.Parse("d0222222-2222-2222-2222-222222222294"),
+            IssueId = AdmissionSilentIssueId,
+            ActivityType = "Created",
+            ActorName = "System",
+            TimestampUtc = discoveredAt,
+            Summary = "Infrastructure issue auto-synthesized due to missed cadence.",
+            DetailsJson = (string?)null
+        }, transaction);
+    }
+
+    private static async Task SeedRetiredDetectorActiveIssueAsync(
+        IDbConnection connection,
+        IDbTransaction transaction,
+        DateTime nowUtc)
+    {
+        var discoveredAt = nowUtc.AddDays(-6);
+        var acknowledgedAt = nowUtc.AddDays(-5).AddHours(1);
+        var correlationKey = $"{RetiredDetectorId:D}:LEGACY-ADT-4091";
+
+        await connection.ExecuteAsync(RunSql, new
+        {
+            Id = RetiredDetectorRunId,
+            DetectorId = RetiredDetectorId,
+            ExecutionTimestampUtc = discoveredAt,
+            TriggerSource = TriggerSource.Scheduled.ToString(),
+            Outcome = InspectionOutcome.FindingDiscovered.ToString(),
+            DurationMs = 280,
+            FailureReason = (string?)null,
+            CreatedAtUtc = discoveredAt
+        }, transaction);
+
+        await connection.ExecuteAsync(IssueSql, new
+        {
+            Id = RetiredDetectorIssueId,
+            CorrelationKey = correlationKey,
+            Title = "Unmatched Discharge Encounter: Room 402 Bed B",
+            DetectorId = RetiredDetectorId,
+            DetectorName = "Legacy Bed Tracking Bridge",
+            Scope = MonitoringScope.ProcessIntegrity.ToString(),
+            BaseSeverity = IssueSeverity.Medium.ToString(),
+            CurrentSeverity = IssueSeverity.Medium.ToString(),
+            SeverityRank = (byte)SeverityRank.Medium,
+            Status = IssueStatus.Investigating.ToString(),
+            EscalationLevel = 0,
+            OccurrenceCount = 2,
+            CurrentAssignee = "siti.rahma",
+            CreatedAtUtc = discoveredAt,
+            LastOccurrenceAtUtc = nowUtc.AddDays(-5),
+            AcknowledgedAtUtc = (DateTime?)acknowledgedAt,
+            ResolvedAtUtc = (DateTime?)null,
+            DismissedAtUtc = (DateTime?)null,
+            ReopenedAtUtc = (DateTime?)null
+        }, transaction);
+
+        await connection.ExecuteAsync(OccurrenceSql, new
+        {
+            Id = RetiredDetectorOccurrenceId,
+            IssueId = RetiredDetectorIssueId,
+            InspectionRunId = RetiredDetectorRunId,
+            OccurrenceNumber = 1,
+            TimestampUtc = discoveredAt,
+            Module = "Inpatient",
+            SourceTable = "bed_adt_events",
+            RecordKeys = "bed_id=B402-B, encounter_id=ENC-2026-9041",
+            DebitTotal = (decimal?)null,
+            CreditTotal = (decimal?)null,
+            VarianceDelta = (decimal?)null,
+            TraceString = "Discharge event recorded in legacy ADT stream with missing HIS Encounter close timestamp."
+        }, transaction);
+
+        await connection.ExecuteAsync(ActivityLogSql, new
+        {
+            Id = Guid.Parse("d0888888-8888-8888-8888-888888888811"),
+            IssueId = RetiredDetectorIssueId,
+            ActivityType = "IssueDiscovered",
+            ActorName = "System",
+            TimestampUtc = discoveredAt,
+            Summary = "Issue discovered by automated inspection run.",
+            DetailsJson = (string?)null
+        }, transaction);
+
+        await connection.ExecuteAsync(ActivityLogSql, new
+        {
+            Id = Guid.Parse("d0888888-8888-8888-8888-888888888812"),
+            IssueId = RetiredDetectorIssueId,
+            ActivityType = "Taken",
+            ActorName = "siti.rahma",
+            TimestampUtc = acknowledgedAt,
+            Summary = "Issue taken and investigation started by siti.rahma.",
+            DetailsJson = (string?)null
+        }, transaction);
+    }
+
+    private static async Task SeedEscalatedIssueAsync(
+        IDbConnection connection,
+        IDbTransaction transaction,
+        DateTime nowUtc)
+    {
+        var correlationKey = $"{PrescriptionDetectorId:D}:RX-ESCALATED-099";
+        var discoveredAt = nowUtc.AddHours(-18);
+        var firstEscalationAt = nowUtc.AddHours(-14);
+        var secondEscalationAt = nowUtc.AddHours(-6);
+        var lastOccurrenceAt = nowUtc.AddMinutes(-30);
+
+        await connection.ExecuteAsync(RunSql, new
+        {
+            Id = EscalatedInspectionRunId,
+            DetectorId = PrescriptionDetectorId,
+            ExecutionTimestampUtc = discoveredAt,
+            TriggerSource = TriggerSource.Scheduled.ToString(),
+            Outcome = InspectionOutcome.FindingDiscovered.ToString(),
+            DurationMs = 350,
+            FailureReason = (string?)null,
+            CreatedAtUtc = discoveredAt
+        }, transaction);
+
+        await connection.ExecuteAsync(IssueSql, new
+        {
+            Id = EscalatedIssueId,
+            CorrelationKey = correlationKey,
+            Title = "Narcotic Dispense Discrepancy: Fentanyl 50mcg Batch RX-ESCALATED-099",
+            DetectorId = PrescriptionDetectorId,
+            DetectorName = "Prescription Stock Deductor",
+            Scope = MonitoringScope.DataSync.ToString(),
+            BaseSeverity = IssueSeverity.Medium.ToString(),
+            CurrentSeverity = IssueSeverity.Critical.ToString(),
+            SeverityRank = (byte)SeverityRank.Critical,
+            Status = IssueStatus.Open.ToString(),
+            EscalationLevel = 2,
+            OccurrenceCount = 6,
+            CurrentAssignee = (string?)null,
+            CreatedAtUtc = discoveredAt,
+            LastOccurrenceAtUtc = lastOccurrenceAt,
+            AcknowledgedAtUtc = (DateTime?)null,
+            ResolvedAtUtc = (DateTime?)null,
+            DismissedAtUtc = (DateTime?)null,
+            ReopenedAtUtc = (DateTime?)null
+        }, transaction);
+
+        await connection.ExecuteAsync(OccurrenceSql, new
+        {
+            Id = EscalatedOccurrenceId,
+            IssueId = EscalatedIssueId,
+            InspectionRunId = EscalatedInspectionRunId,
+            OccurrenceNumber = 1,
+            TimestampUtc = discoveredAt,
+            Module = "Pharmacy",
+            SourceTable = "pharmacy_dispense_log",
+            RecordKeys = "item_code=MED-FNT-50, batch_no=RX-ESCALATED-099",
+            DebitTotal = (decimal?)null,
+            CreditTotal = (decimal?)null,
+            VarianceDelta = (decimal?)12.00m,
+            TraceString = "Controlled substance dispense journal has 12 ampoules discrepancy against automated cabinet inventory log."
+        }, transaction);
+
+        await connection.ExecuteAsync(ActivityLogSql, new
+        {
+            Id = Guid.Parse("d0999999-9999-9999-9999-999999999911"),
+            IssueId = EscalatedIssueId,
+            ActivityType = "IssueDiscovered",
+            ActorName = "System",
+            TimestampUtc = discoveredAt,
+            Summary = "Issue discovered by automated inspection run.",
+            DetailsJson = (string?)null
+        }, transaction);
+
+        await connection.ExecuteAsync(ActivityLogSql, new
+        {
+            Id = Guid.Parse("d0999999-9999-9999-9999-999999999912"),
+            IssueId = EscalatedIssueId,
+            ActivityType = "SeverityEscalated",
+            ActorName = "System",
+            TimestampUtc = firstEscalationAt,
+            Summary = "SLA breach: Issue unacknowledged for > 4h at level 0. Severity stepped to High.",
+            DetailsJson = (string?)null
+        }, transaction);
+
+        await connection.ExecuteAsync(ActivityLogSql, new
+        {
+            Id = Guid.Parse("d0999999-9999-9999-9999-999999999913"),
+            IssueId = EscalatedIssueId,
+            ActivityType = "SeverityEscalated",
+            ActorName = "System",
+            TimestampUtc = secondEscalationAt,
+            Summary = "Recurrence breach: Issue reached 5 occurrences. Severity stepped to Critical.",
+            DetailsJson = (string?)null
+        }, transaction);
     }
 
     private static async Task SeedOpenIssueAsync(
@@ -1219,6 +1796,616 @@ public sealed class DevelopmentDemoDataSeeder
             Summary = $"Issue dismissed (AcceptedOperationalException): {dismissalRationale}",
             DetailsJson = (string?)null
         }, transaction);
+    }
+
+    private static async Task SeedTodayInspectionRunsAsync(
+        IDbConnection connection,
+        IDbTransaction transaction,
+        DateTime nowUtc,
+        DateTime startOfTodayWibUtc)
+    {
+        var anchorTodayUtc = nowUtc > startOfTodayWibUtc.AddMinutes(30)
+            ? nowUtc.AddMinutes(-5)
+            : startOfTodayWibUtc.AddMinutes(30);
+
+        var todayRuns = new[]
+        {
+            (RunIndex: 901, DetectorId: BillingDetectorId, MinutesOffset: -20, Outcome: InspectionOutcome.Passed, DurationMs: 135, Failure: (string?)null),
+            (RunIndex: 902, DetectorId: BillingDetectorId, MinutesOffset: -15, Outcome: InspectionOutcome.Passed, DurationMs: 142, Failure: (string?)null),
+            (RunIndex: 903, DetectorId: BillingDetectorId, MinutesOffset: -10, Outcome: InspectionOutcome.Passed, DurationMs: 128, Failure: (string?)null),
+            (RunIndex: 904, DetectorId: BillingDetectorId, MinutesOffset: -5, Outcome: InspectionOutcome.Passed, DurationMs: 131, Failure: (string?)null),
+            (RunIndex: 905, DetectorId: PrescriptionDetectorId, MinutesOffset: -18, Outcome: InspectionOutcome.Passed, DurationMs: 155, Failure: (string?)null),
+            (RunIndex: 906, DetectorId: PrescriptionDetectorId, MinutesOffset: -12, Outcome: InspectionOutcome.Passed, DurationMs: 162, Failure: (string?)null),
+            (RunIndex: 907, DetectorId: PrescriptionDetectorId, MinutesOffset: -6, Outcome: InspectionOutcome.ExecutionFailed, DurationMs: 0, Failure: "Transient pharmacy stock sync timeout during peak dispense window.")
+        };
+
+        foreach (var r in todayRuns)
+        {
+            var runTime = anchorTodayUtc.AddMinutes(r.MinutesOffset);
+            if (runTime < startOfTodayWibUtc)
+            {
+                runTime = startOfTodayWibUtc.AddMinutes(Math.Abs(r.MinutesOffset));
+            }
+
+            await connection.ExecuteAsync(RunSql, new
+            {
+                Id = CreateDeterministicRunId(r.DetectorId, r.RunIndex),
+                DetectorId = r.DetectorId,
+                ExecutionTimestampUtc = runTime,
+                TriggerSource = TriggerSource.Scheduled.ToString(),
+                Outcome = r.Outcome.ToString(),
+                DurationMs = r.DurationMs,
+                FailureReason = r.Failure,
+                CreatedAtUtc = runTime
+            }, transaction);
+        }
+    }
+
+    private static async Task SeedHistoricalCohortIssuesAsync(
+        IDbConnection connection,
+        IDbTransaction transaction,
+        DateTime nowUtc,
+        DateTime startOfTodayWibUtc)
+    {
+        var todayCohortUtc = nowUtc > startOfTodayWibUtc ? nowUtc : startOfTodayWibUtc.AddMinutes(30);
+
+        // 1. Resolved Today (ProcessIntegrity / Laboratory / Medium)
+        await SeedCohortResolvedIssueAsync(
+            connection,
+            transaction,
+            issueId: ResolvedTodayProcessIssueId,
+            entityRef: "LIS-2026-RESOLVED-TODAY",
+            title: "Delayed Lab Result Dispatch: LIS-2026-RESOLVED-TODAY",
+            detectorId: LaboratoryDetectorId,
+            detectorName: "Laboratory Result Dispatch Monitor",
+            scope: MonitoringScope.ProcessIntegrity,
+            severity: IssueSeverity.Medium,
+            severityRank: SeverityRank.Medium,
+            assignee: "siti.rahma",
+            discoveredAt: todayCohortUtc.AddHours(-3),
+            acknowledgedAt: todayCohortUtc.AddHours(-2.5),
+            resolvedAt: todayCohortUtc.AddMinutes(-10),
+            module: "Laboratory",
+            sourceTable: "lis_dispatch_queue",
+            remediationSummary: "Flushed stalled HL7 ORU^R01 outbound queue and verified delivery.",
+            keepResolvedAtSyncedToToday: true);
+
+        // 2. Resolved Last Week (DataIntegrity / Prescription / Medium)
+        await SeedCohortResolvedIssueAsync(
+            connection,
+            transaction,
+            issueId: ResolvedLastWeekPharmacyIssueId,
+            entityRef: "RX-2026-RESOLVED-LW1",
+            title: "Negative Stock Ledger Drift: RX-2026-RESOLVED-LW1",
+            detectorId: PrescriptionDetectorId,
+            detectorName: "Prescription Dispense Stock Checker",
+            scope: MonitoringScope.DataIntegrity,
+            severity: IssueSeverity.Medium,
+            severityRank: SeverityRank.Medium,
+            assignee: "ahmad.budi",
+            discoveredAt: nowUtc.AddDays(-7).AddHours(-4),
+            acknowledgedAt: nowUtc.AddDays(-7).AddHours(-3),
+            resolvedAt: nowUtc.AddDays(-7),
+            module: "Pharmacy",
+            sourceTable: "phm_stock_ledger",
+            remediationSummary: "Reconciled dispense batch reversal and restored non-negative stock balance.",
+            keepResolvedAtSyncedToToday: false);
+
+        // 3. Resolved Last Week (Infrastructure / Replication / Critical)
+        await SeedCohortResolvedIssueAsync(
+            connection,
+            transaction,
+            issueId: ResolvedLastWeekInfraIssueId,
+            entityRef: "REPL-2026-RESOLVED-LW2",
+            title: "Replication Lag Spike Above 120s: REPL-2026-RESOLVED-LW2",
+            detectorId: ReplicationDetectorId,
+            detectorName: "EMR Database Replication Lag Monitor",
+            scope: MonitoringScope.Infrastructure,
+            severity: IssueSeverity.Critical,
+            severityRank: SeverityRank.Critical,
+            assignee: "ahmad.budi",
+            discoveredAt: nowUtc.AddDays(-10).AddHours(-5),
+            acknowledgedAt: nowUtc.AddDays(-10).AddHours(-4.5),
+            resolvedAt: nowUtc.AddDays(-10),
+            module: "Database",
+            sourceTable: "sys.dm_hadr_database_replica_states",
+            remediationSummary: "Cleared long-running reporting transaction blocking redo queue on secondary.",
+            keepResolvedAtSyncedToToday: false);
+
+        // 4. Dismissed Last Week (DataIntegrity / Billing / Low)
+        await SeedCohortDismissedIssueAsync(
+            connection,
+            transaction,
+            issueId: DismissedLastWeekIssueId,
+            entityRef: "BILL-2026-DISMISSED-LW1",
+            title: "Rounding Penny Variance on BPJS Claim: BILL-2026-DISMISSED-LW1",
+            detectorId: BillingDetectorId,
+            detectorName: "Billing Journal Balance Checker",
+            scope: MonitoringScope.DataIntegrity,
+            severity: IssueSeverity.Low,
+            severityRank: SeverityRank.Low,
+            assignee: "siti.rahma",
+            discoveredAt: nowUtc.AddDays(-9).AddHours(-2),
+            dismissedAt: nowUtc.AddDays(-9),
+            module: "Billing",
+            sourceTable: "acc_journal_entries",
+            rationale: "Verified 1 IDR rounding difference is an expected BPJS tariff ceiling adjustment.");
+
+        // 5. Reopened Today (DataIntegrity / Billing / High)
+        await SeedCohortReopenedIssueAsync(
+            connection,
+            transaction,
+            issueId: ReopenedTodayIssueId,
+            entityRef: "BILL-2026-REOPENED-TODAY",
+            title: "Recurring Journal Imbalance: BILL-2026-REOPENED-TODAY",
+            detectorId: BillingDetectorId,
+            detectorName: "Billing Journal Balance Checker",
+            scope: MonitoringScope.DataIntegrity,
+            severity: IssueSeverity.High,
+            severityRank: SeverityRank.High,
+            discoveredAt: nowUtc.AddDays(-3),
+            reopenedAt: todayCohortUtc.AddMinutes(-15),
+            module: "Billing",
+            sourceTable: "acc_journal_entries");
+
+        // 6. Reopened Last Week (ProcessIntegrity / Laboratory / Medium)
+        await SeedCohortReopenedIssueAsync(
+            connection,
+            transaction,
+            issueId: ReopenedLastWeekIssueId,
+            entityRef: "LIS-2026-REOPENED-LW1",
+            title: "Recurring Specimen Barcode Mismatch: LIS-2026-REOPENED-LW1",
+            detectorId: LaboratoryDetectorId,
+            detectorName: "Laboratory Result Dispatch Monitor",
+            scope: MonitoringScope.ProcessIntegrity,
+            severity: IssueSeverity.Medium,
+            severityRank: SeverityRank.Medium,
+            discoveredAt: nowUtc.AddDays(-12),
+            reopenedAt: nowUtc.AddDays(-6),
+            module: "Laboratory",
+            sourceTable: "lis_specimen_orders");
+
+        // 7. Open Historical Issue (ProcessIntegrity / Laboratory / Low)
+        var openCreatedAt = nowUtc.AddDays(-5);
+        var openRunId = DeriveCohortGuid(OpenHistoricalLabIssueId, 0x02);
+        await connection.ExecuteAsync(RunSql, new
+        {
+            Id = openRunId,
+            DetectorId = LaboratoryDetectorId,
+            ExecutionTimestampUtc = openCreatedAt,
+            TriggerSource = TriggerSource.Scheduled.ToString(),
+            Outcome = InspectionOutcome.FindingDiscovered.ToString(),
+            DurationMs = 275,
+            FailureReason = (string?)null,
+            CreatedAtUtc = openCreatedAt
+        }, transaction);
+
+        await connection.ExecuteAsync(IssueSql, new
+        {
+            Id = OpenHistoricalLabIssueId,
+            CorrelationKey = $"{LaboratoryDetectorId:D}:LIS-2026-OPEN-HIST1",
+            Title = "Minor Specimen Turnaround Delay: LIS-2026-OPEN-HIST1",
+            DetectorId = LaboratoryDetectorId,
+            DetectorName = "Laboratory Result Dispatch Monitor",
+            Scope = MonitoringScope.ProcessIntegrity.ToString(),
+            BaseSeverity = IssueSeverity.Low.ToString(),
+            CurrentSeverity = IssueSeverity.Low.ToString(),
+            SeverityRank = (byte)SeverityRank.Low,
+            Status = IssueStatus.Open.ToString(),
+            EscalationLevel = 0,
+            OccurrenceCount = 1,
+            CurrentAssignee = (string?)null,
+            CreatedAtUtc = openCreatedAt,
+            LastOccurrenceAtUtc = openCreatedAt,
+            AcknowledgedAtUtc = (DateTime?)null,
+            ResolvedAtUtc = (DateTime?)null,
+            DismissedAtUtc = (DateTime?)null,
+            ReopenedAtUtc = (DateTime?)null
+        }, transaction);
+
+        await connection.ExecuteAsync(OccurrenceSql, new
+        {
+            Id = DeriveCohortGuid(OpenHistoricalLabIssueId, 0x03),
+            IssueId = OpenHistoricalLabIssueId,
+            InspectionRunId = openRunId,
+            OccurrenceNumber = 1,
+            TimestampUtc = openCreatedAt,
+            Module = "Laboratory",
+            SourceTable = "lis_dispatch_queue",
+            RecordKeys = "specimen_id=SP-2026-4401",
+            DebitTotal = (decimal?)null,
+            CreditTotal = (decimal?)null,
+            VarianceDelta = (decimal?)null,
+            TraceString = "Specimen result dispatch exceeded 15-minute SLA threshold."
+        }, transaction);
+
+        await connection.ExecuteAsync(ActivityLogSql, new
+        {
+            Id = DeriveCohortGuid(OpenHistoricalLabIssueId, 0x11),
+            IssueId = OpenHistoricalLabIssueId,
+            ActivityType = "IssueDiscovered",
+            ActorName = "System",
+            TimestampUtc = openCreatedAt,
+            Summary = "Issue discovered by automated inspection run.",
+            DetailsJson = (string?)null
+        }, transaction);
+    }
+
+    private static async Task SeedCohortResolvedIssueAsync(
+        IDbConnection connection,
+        IDbTransaction transaction,
+        Guid issueId,
+        string entityRef,
+        string title,
+        Guid detectorId,
+        string detectorName,
+        MonitoringScope scope,
+        IssueSeverity severity,
+        byte severityRank,
+        string assignee,
+        DateTime discoveredAt,
+        DateTime acknowledgedAt,
+        DateTime resolvedAt,
+        string module,
+        string sourceTable,
+        string remediationSummary,
+        bool keepResolvedAtSyncedToToday)
+    {
+        var runId = DeriveCohortGuid(issueId, 0x02);
+        var correlationKey = $"{detectorId:D}:{entityRef.ToUpperInvariant()}";
+
+        await connection.ExecuteAsync(RunSql, new
+        {
+            Id = runId,
+            DetectorId = detectorId,
+            ExecutionTimestampUtc = discoveredAt,
+            TriggerSource = TriggerSource.Scheduled.ToString(),
+            Outcome = InspectionOutcome.FindingDiscovered.ToString(),
+            DurationMs = 260,
+            FailureReason = (string?)null,
+            CreatedAtUtc = discoveredAt
+        }, transaction);
+
+        var sql = keepResolvedAtSyncedToToday
+            ? """
+              IF NOT EXISTS (SELECT 1 FROM dbo.Issues WHERE Id = @Id OR CorrelationKey = @CorrelationKey)
+              BEGIN
+                  INSERT INTO dbo.Issues (
+                      Id, CorrelationKey, Title, DetectorId, DetectorName, Scope,
+                      BaseSeverity, CurrentSeverity, SeverityRank, Status, EscalationLevel, OccurrenceCount,
+                      CurrentAssignee, CreatedAtUtc, LastOccurrenceAtUtc, AcknowledgedAtUtc, ResolvedAtUtc, DismissedAtUtc, ReopenedAtUtc
+                  )
+                  VALUES (
+                      @Id, @CorrelationKey, @Title, @DetectorId, @DetectorName, @Scope,
+                      @BaseSeverity, @CurrentSeverity, @SeverityRank, @Status, @EscalationLevel, @OccurrenceCount,
+                      @CurrentAssignee, @CreatedAtUtc, @LastOccurrenceAtUtc, @AcknowledgedAtUtc, @ResolvedAtUtc, NULL, NULL
+                  );
+              END
+              ELSE
+              BEGIN
+                  UPDATE dbo.Issues
+                  SET ResolvedAtUtc = @ResolvedAtUtc
+                  WHERE (Id = @Id OR CorrelationKey = @CorrelationKey) AND Status = 'Resolved';
+              END
+              """
+            : IssueSql;
+
+        await connection.ExecuteAsync(sql, new
+        {
+            Id = issueId,
+            CorrelationKey = correlationKey,
+            Title = title,
+            DetectorId = detectorId,
+            DetectorName = detectorName,
+            Scope = scope.ToString(),
+            BaseSeverity = severity.ToString(),
+            CurrentSeverity = severity.ToString(),
+            SeverityRank = (byte)severityRank,
+            Status = IssueStatus.Resolved.ToString(),
+            EscalationLevel = 0,
+            OccurrenceCount = 1,
+            CurrentAssignee = assignee,
+            CreatedAtUtc = discoveredAt,
+            LastOccurrenceAtUtc = discoveredAt,
+            AcknowledgedAtUtc = (DateTime?)acknowledgedAt,
+            ResolvedAtUtc = (DateTime?)resolvedAt,
+            DismissedAtUtc = (DateTime?)null,
+            ReopenedAtUtc = (DateTime?)null
+        }, transaction);
+
+        await connection.ExecuteAsync(OccurrenceSql, new
+        {
+            Id = DeriveCohortGuid(issueId, 0x03),
+            IssueId = issueId,
+            InspectionRunId = runId,
+            OccurrenceNumber = 1,
+            TimestampUtc = discoveredAt,
+            Module = module,
+            SourceTable = sourceTable,
+            RecordKeys = $"ref={entityRef}",
+            DebitTotal = (decimal?)null,
+            CreditTotal = (decimal?)null,
+            VarianceDelta = (decimal?)null,
+            TraceString = $"Historical cohort finding detected for {entityRef}."
+        }, transaction);
+
+        await connection.ExecuteAsync(RemediationSql, new
+        {
+            Id = DeriveCohortGuid(issueId, 0x04),
+            IssueId = issueId,
+            ActionCategory = "DataCorrection",
+            SummaryDescription = remediationSummary,
+            PerformedBy = assignee,
+            TimestampUtc = resolvedAt.AddMinutes(-20),
+            IsSuperseded = false
+        }, transaction);
+
+        await connection.ExecuteAsync(VerificationSql, new
+        {
+            Id = DeriveCohortGuid(issueId, 0x05),
+            IssueId = issueId,
+            VerificationMethod = "AutomatedReRun",
+            CleanPassed = true,
+            EvidenceNotes = "Automated re-run confirmed zero remaining anomaly.",
+            VerifiedBy = assignee,
+            TimestampUtc = resolvedAt,
+            IsSuperseded = false
+        }, transaction);
+
+        await connection.ExecuteAsync(ActivityLogSql, new
+        {
+            Id = DeriveCohortGuid(issueId, 0x11),
+            IssueId = issueId,
+            ActivityType = "IssueDiscovered",
+            ActorName = "System",
+            TimestampUtc = discoveredAt,
+            Summary = "Issue discovered by automated inspection run.",
+            DetailsJson = (string?)null
+        }, transaction);
+
+        await connection.ExecuteAsync(ActivityLogSql, new
+        {
+            Id = DeriveCohortGuid(issueId, 0x12),
+            IssueId = issueId,
+            ActivityType = "Resolved",
+            ActorName = assignee,
+            TimestampUtc = resolvedAt,
+            Summary = "Issue resolved after clean verification passed.",
+            DetailsJson = (string?)null
+        }, transaction);
+    }
+
+    private static async Task SeedCohortDismissedIssueAsync(
+        IDbConnection connection,
+        IDbTransaction transaction,
+        Guid issueId,
+        string entityRef,
+        string title,
+        Guid detectorId,
+        string detectorName,
+        MonitoringScope scope,
+        IssueSeverity severity,
+        byte severityRank,
+        string assignee,
+        DateTime discoveredAt,
+        DateTime dismissedAt,
+        string module,
+        string sourceTable,
+        string rationale)
+    {
+        var runId = DeriveCohortGuid(issueId, 0x02);
+        await connection.ExecuteAsync(RunSql, new
+        {
+            Id = runId,
+            DetectorId = detectorId,
+            ExecutionTimestampUtc = discoveredAt,
+            TriggerSource = TriggerSource.Scheduled.ToString(),
+            Outcome = InspectionOutcome.FindingDiscovered.ToString(),
+            DurationMs = 190,
+            FailureReason = (string?)null,
+            CreatedAtUtc = discoveredAt
+        }, transaction);
+
+        await connection.ExecuteAsync(IssueSql, new
+        {
+            Id = issueId,
+            CorrelationKey = $"{detectorId:D}:{entityRef.ToUpperInvariant()}",
+            Title = title,
+            DetectorId = detectorId,
+            DetectorName = detectorName,
+            Scope = scope.ToString(),
+            BaseSeverity = severity.ToString(),
+            CurrentSeverity = severity.ToString(),
+            SeverityRank = (byte)severityRank,
+            Status = IssueStatus.Dismissed.ToString(),
+            EscalationLevel = 0,
+            OccurrenceCount = 1,
+            CurrentAssignee = assignee,
+            CreatedAtUtc = discoveredAt,
+            LastOccurrenceAtUtc = discoveredAt,
+            AcknowledgedAtUtc = (DateTime?)null,
+            ResolvedAtUtc = (DateTime?)null,
+            DismissedAtUtc = (DateTime?)dismissedAt,
+            ReopenedAtUtc = (DateTime?)null
+        }, transaction);
+
+        await connection.ExecuteAsync(OccurrenceSql, new
+        {
+            Id = DeriveCohortGuid(issueId, 0x03),
+            IssueId = issueId,
+            InspectionRunId = runId,
+            OccurrenceNumber = 1,
+            TimestampUtc = discoveredAt,
+            Module = module,
+            SourceTable = sourceTable,
+            RecordKeys = $"ref={entityRef}",
+            DebitTotal = (decimal?)null,
+            CreditTotal = (decimal?)null,
+            VarianceDelta = (decimal?)null,
+            TraceString = $"Historical dismissed finding for {entityRef}."
+        }, transaction);
+
+        await connection.ExecuteAsync(DismissalSql, new
+        {
+            Id = DeriveCohortGuid(issueId, 0x04),
+            IssueId = issueId,
+            DismissalReason = "AcceptedOperationalException",
+            JustificationRationale = rationale,
+            DismissedBy = assignee,
+            TimestampUtc = dismissedAt,
+            IsSuperseded = false
+        }, transaction);
+
+        await connection.ExecuteAsync(ActivityLogSql, new
+        {
+            Id = DeriveCohortGuid(issueId, 0x11),
+            IssueId = issueId,
+            ActivityType = "Dismissed",
+            ActorName = assignee,
+            TimestampUtc = dismissedAt,
+            Summary = $"Issue dismissed (AcceptedOperationalException): {rationale}",
+            DetailsJson = (string?)null
+        }, transaction);
+    }
+
+    private static async Task SeedCohortReopenedIssueAsync(
+        IDbConnection connection,
+        IDbTransaction transaction,
+        Guid issueId,
+        string entityRef,
+        string title,
+        Guid detectorId,
+        string detectorName,
+        MonitoringScope scope,
+        IssueSeverity severity,
+        byte severityRank,
+        DateTime discoveredAt,
+        DateTime reopenedAt,
+        string module,
+        string sourceTable)
+    {
+        var run1Id = DeriveCohortGuid(issueId, 0x02);
+        var run2Id = DeriveCohortGuid(issueId, 0x06);
+
+        await connection.ExecuteAsync(RunSql, new
+        {
+            Id = run1Id,
+            DetectorId = detectorId,
+            ExecutionTimestampUtc = discoveredAt,
+            TriggerSource = TriggerSource.Scheduled.ToString(),
+            Outcome = InspectionOutcome.FindingDiscovered.ToString(),
+            DurationMs = 240,
+            FailureReason = (string?)null,
+            CreatedAtUtc = discoveredAt
+        }, transaction);
+
+        await connection.ExecuteAsync(RunSql, new
+        {
+            Id = run2Id,
+            DetectorId = detectorId,
+            ExecutionTimestampUtc = reopenedAt,
+            TriggerSource = TriggerSource.Scheduled.ToString(),
+            Outcome = InspectionOutcome.FindingDiscovered.ToString(),
+            DurationMs = 250,
+            FailureReason = (string?)null,
+            CreatedAtUtc = reopenedAt
+        }, transaction);
+
+        await connection.ExecuteAsync(IssueSql, new
+        {
+            Id = issueId,
+            CorrelationKey = $"{detectorId:D}:{entityRef.ToUpperInvariant()}",
+            Title = title,
+            DetectorId = detectorId,
+            DetectorName = detectorName,
+            Scope = scope.ToString(),
+            BaseSeverity = severity.ToString(),
+            CurrentSeverity = severity.ToString(),
+            SeverityRank = (byte)severityRank,
+            Status = IssueStatus.Reopened.ToString(),
+            EscalationLevel = 0,
+            OccurrenceCount = 2,
+            CurrentAssignee = (string?)null,
+            CreatedAtUtc = discoveredAt,
+            LastOccurrenceAtUtc = reopenedAt,
+            AcknowledgedAtUtc = (DateTime?)null,
+            ResolvedAtUtc = (DateTime?)null,
+            DismissedAtUtc = (DateTime?)null,
+            ReopenedAtUtc = (DateTime?)reopenedAt
+        }, transaction);
+
+        await connection.ExecuteAsync(OccurrenceSql, new
+        {
+            Id = DeriveCohortGuid(issueId, 0x03),
+            IssueId = issueId,
+            InspectionRunId = run1Id,
+            OccurrenceNumber = 1,
+            TimestampUtc = discoveredAt,
+            Module = module,
+            SourceTable = sourceTable,
+            RecordKeys = $"ref={entityRef}",
+            DebitTotal = (decimal?)null,
+            CreditTotal = (decimal?)null,
+            VarianceDelta = (decimal?)null,
+            TraceString = $"Initial occurrence for {entityRef}."
+        }, transaction);
+
+        await connection.ExecuteAsync(OccurrenceSql, new
+        {
+            Id = DeriveCohortGuid(issueId, 0x07),
+            IssueId = issueId,
+            InspectionRunId = run2Id,
+            OccurrenceNumber = 2,
+            TimestampUtc = reopenedAt,
+            Module = module,
+            SourceTable = sourceTable,
+            RecordKeys = $"ref={entityRef}",
+            DebitTotal = (decimal?)null,
+            CreditTotal = (decimal?)null,
+            VarianceDelta = (decimal?)null,
+            TraceString = $"Recurring occurrence triggering Reopened transition for {entityRef}."
+        }, transaction);
+
+        await connection.ExecuteAsync(RemediationSql, new
+        {
+            Id = DeriveCohortGuid(issueId, 0x04),
+            IssueId = issueId,
+            ActionCategory = "DataCorrection",
+            SummaryDescription = "Initial remediation applied prior to recurrence.",
+            PerformedBy = "ahmad.budi",
+            TimestampUtc = discoveredAt.AddHours(2),
+            IsSuperseded = true
+        }, transaction);
+
+        await connection.ExecuteAsync(VerificationSql, new
+        {
+            Id = DeriveCohortGuid(issueId, 0x05),
+            IssueId = issueId,
+            VerificationMethod = "AutomatedReRun",
+            CleanPassed = true,
+            EvidenceNotes = "Prior verification superseded when issue recurred.",
+            VerifiedBy = "ahmad.budi",
+            TimestampUtc = discoveredAt.AddHours(3),
+            IsSuperseded = true
+        }, transaction);
+
+        await connection.ExecuteAsync(ActivityLogSql, new
+        {
+            Id = DeriveCohortGuid(issueId, 0x11),
+            IssueId = issueId,
+            ActivityType = "Reopened",
+            ActorName = "System",
+            TimestampUtc = reopenedAt,
+            Summary = "Issue automatically reopened after recurring finding was detected.",
+            DetailsJson = (string?)null
+        }, transaction);
+    }
+
+    private static Guid DeriveCohortGuid(Guid baseId, byte suffixByte)
+    {
+        var bytes = baseId.ToByteArray();
+        bytes[15] = suffixByte;
+        return new Guid(bytes);
     }
 
     private TimeZoneInfo GetOperationalTimeZone()

@@ -44,6 +44,8 @@ function formatMethodLabel(method?: string): string {
       return 'Automated Supervisor';
     case 'TelemetryRecurrence':
       return 'Telemetry Recurrence';
+    case 'AutomatedReRun':
+      return 'Automated Re-Run';
     default:
       return method;
   }

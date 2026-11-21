@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { useRouter } from 'vue-router';
 import type { DashboardSummaryDto } from '@/shared/types/api.generated';
+
+const router = useRouter();
 
 const props = defineProps<{
   summary?: DashboardSummaryDto;
@@ -42,6 +45,10 @@ function toggleReopened() {
   } else {
     emit('update:status', 'Reopened');
   }
+}
+
+function goToResolvedToday() {
+  router.push({ path: '/history', query: { preset: 'Today', status: 'Resolved' } });
 }
 </script>
 
@@ -163,22 +170,22 @@ function toggleReopened() {
       <div class="text-[11px] text-slate-500 mt-0.5">Recurred anomalies (BR-PRIMA-002)</div>
     </button>
 
-    <!-- 5. Resolved Today Tile (Green Accent - Non-clickable Stage 1 Boundary) -->
-    <div
-      v-tooltip.bottom="'History view available in Stage 4'"
-      class="text-left p-3.5 rounded-lg border bg-emerald-50/40 border-emerald-200/80 flex flex-col justify-between cursor-default select-none"
+    <!-- 5. Resolved Today Tile (Green Accent - Deep Link to S-07 History & Reports) -->
+    <button
+      type="button"
+      @click="goToResolvedToday"
+      class="text-left p-3.5 rounded-lg border transition-all flex flex-col justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50 bg-white border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/30"
     >
       <div class="flex items-center justify-between">
         <span class="text-[11px] font-semibold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
           <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
           Resolved Today
         </span>
-        <i class="pi pi-lock text-[11px] text-emerald-600/70" title="Stage 4 Boundary"></i>
       </div>
       <div class="mt-2 font-mono text-2xl font-bold text-slate-900 tabular-nums">
         {{ summary?.resolvedTodayCount ?? 0 }}
       </div>
       <div class="text-[11px] text-slate-500 mt-0.5">Verified today (WIB)</div>
-    </div>
+    </button>
   </div>
 </template>

@@ -182,9 +182,9 @@ function getStatusIcon(status: string): string {
                 <span
                   v-if="item.escalationLevel > 0"
                   v-tooltip.top="'Severity auto-escalated (SLA timeout or ≥5 occurrences)'"
-                  class="inline-flex items-center text-[10px] font-bold px-1 py-0.2 rounded bg-rose-100 text-rose-800 border border-rose-300"
+                  class="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300"
                 >
-                  ↑ +{{ item.escalationLevel }}
+                  ↑ Escalated (L{{ item.escalationLevel }})
                 </span>
               </div>
             </td>

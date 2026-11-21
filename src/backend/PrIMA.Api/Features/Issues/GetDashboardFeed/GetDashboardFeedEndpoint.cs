@@ -26,6 +26,7 @@ public static class GetDashboardFeedEndpoint
         .RequireAuthorization()
         .WithName("GetDashboardFeed")
         .WithTags("Issues")
+        .WithSummary("Get active issue dashboard feed with operational counters and multi-attribute filters")
         .Produces<GetDashboardFeedResponse>(StatusCodes.Status200OK)
         .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
         .ProducesProblem(StatusCodes.Status401Unauthorized);

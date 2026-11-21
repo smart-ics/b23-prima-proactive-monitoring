@@ -10,6 +10,8 @@ import {
   useStartInvestigationMutation,
   useResolveIssueMutation,
   useAddNoteMutation,
+  useTriggerVerificationRunMutation,
+  useIssueDetectorDetailQuery,
 } from '@/features/issues/api/useIssueDetailQueries';
 import { useIssueDetail } from '@/features/issues/composables/useIssueDetail';
 
@@ -36,6 +38,16 @@ import {
 const route = useRoute();
 const router = useRouter();
 const toast = useToast();
+
+const isFromHistory = computed(() => route.query.from === 'history');
+
+function navigateBack() {
+  if (window.history.state?.back) {
+    router.back();
+  } else {
+    router.push(isFromHistory.value ? '/history' : '/');
+  }
+}
 
 // Extract route param :id
 const issueId = computed(() => {
@@ -76,12 +88,19 @@ const takeItMutation = useTakeItMutation();
 const startInvestigationMutation = useStartInvestigationMutation();
 const resolveMutation = useResolveIssueMutation();
 const addNoteMutation = useAddNoteMutation();
+const triggerVerificationMutation = useTriggerVerificationRunMutation();
+
+// Detector detail lookup for webhook capability
+const detectorId = computed(() => issueDetail.value?.issue?.detectorId ?? issueDetail.value?.detectorId ?? '');
+const { data: detectorDetail } = useIssueDetectorDetailQuery(detectorId);
+const hasWebhook = computed(() => Boolean(detectorDetail.value?.webhookUrl && detectorDetail.value.webhookUrl.trim().length > 0));
 
 const isActionLoading = computed(() => {
   return (
     takeItMutation.isPending.value ||
     startInvestigationMutation.isPending.value ||
-    resolveMutation.isPending.value
+    resolveMutation.isPending.value ||
+    triggerVerificationMutation.isPending.value
   );
 });
 
@@ -191,6 +210,35 @@ async function handleResolve() {
   }
 }
 
+async function handleTriggerVerificationRun() {
+  if (!issueId.value) return;
+  try {
+    const result = await triggerVerificationMutation.mutateAsync(issueId.value);
+    if (result.cleanPassed) {
+      toast.add({
+        severity: 'success',
+        summary: 'Verification Passed',
+        detail: 'Verification Passed: No data anomalies detected',
+        life: 4000,
+      });
+    } else {
+      toast.add({
+        severity: 'warn',
+        summary: 'Verification Failed',
+        detail: 'Verification Failed: Anomaly still present',
+        life: 5000,
+      });
+    }
+  } catch (err: unknown) {
+    toast.add({
+      severity: 'error',
+      summary: 'Verification Failed',
+      detail: err instanceof Error ? err.message : 'Automated verification run failed.',
+      life: 5000,
+    });
+  }
+}
+
 async function handleAddNote() {
   if (!issueId.value || !noteDraftText.value.trim()) return;
   try {
@@ -275,11 +323,16 @@ function handleFocusNoteComposer() {
         </button>
         <button
           type="button"
-          @click="router.push('/')"
+          @click="navigateBack"
           class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors cursor-pointer"
         >
-          <ArrowLeft class="w-3.5 h-3.5" />
-          <span>Back to Dashboard</span>
+          <template v-if="isFromHistory">
+            <span>← Back to History</span>
+          </template>
+          <template v-else>
+            <ArrowLeft class="w-3.5 h-3.5" />
+            <span>Back to Dashboard</span>
+          </template>
         </button>
       </div>
     </div>
@@ -293,12 +346,15 @@ function handleFocusNoteComposer() {
           class="rounded-lg border border-slate-800 shadow-md"
           :issue-detail="issueDetail"
           :is-action-loading="isActionLoading"
+          :has-webhook="hasWebhook"
+          :is-triggering-verification="triggerVerificationMutation.isPending.value"
           @take-it="handleTakeIt"
           @start-investigating="handleStartInvestigating"
           @open-assign-modal="openAssignModal"
           @open-dismiss-modal="openDismissModal"
           @open-remediation-modal="openRemediationModal"
           @open-verification-modal="openVerificationModal"
+          @trigger-verification="handleTriggerVerificationRun"
           @resolve="handleResolve"
           @focus-note-composer="handleFocusNoteComposer"
         />

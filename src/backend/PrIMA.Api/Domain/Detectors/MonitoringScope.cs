@@ -5,5 +5,9 @@ public enum MonitoringScope
     DataIntegrity,
     ProcessIntegrity,
     DataSync,
-    Infrastructure
+    Infrastructure,
+    DataQuality,
+    BusinessLogic,
+    ProcessFlow
 }
+

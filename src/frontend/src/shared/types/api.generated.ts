@@ -20,6 +20,144 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/detectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get detector portfolio list */
+        get: operations["GetDetectors"];
+        put?: never;
+        /** Register a new inspection detector */
+        post: operations["RegisterDetector"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/detectors/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get detector portfolio health summary counts */
+        get: operations["GetDetectorSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/detectors/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get composite detector detail by ID */
+        get: operations["GetDetectorById"];
+        /** Update detector configuration (name is immutable) */
+        put: operations["UpdateDetector"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/detectors/{id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get historical inspection runs for a detector */
+        get: operations["GetInspectionRuns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/detectors/{id}/toggle-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Transition detector administrative lifecycle state (Pause, Resume, Retire) */
+        post: operations["ToggleDetectorStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/detectors/{id}/trigger-run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trigger an immediate manual inspection run for a detector */
+        post: operations["TriggerManualRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/history/reliability-kpi": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get period-close historical reliability KPI metrics and Scope/Severity breakdowns */
+        get: operations["GetReliabilityKpi"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/history/issues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get filterable historical issue ledger with status-aware lifecycle date filtering */
+        get: operations["GetHistoricalIssues"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ingestion/telemetry": {
         parameters: {
             query?: never;
@@ -43,6 +181,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** Get active issue dashboard feed with operational counters and multi-attribute filters */
         get: operations["GetDashboardFeed"];
         put?: never;
         post?: never;
@@ -188,6 +327,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/issues/{id}/verification/trigger-run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trigger an automated probe re-run to verify issue remediation */
+        post: operations["TriggerVerificationRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/issues/{id}/resolve": {
         parameters: {
             query?: never;
@@ -282,6 +438,13 @@ export interface components {
             /** Format: uuid */
             officerId: string;
         };
+        BreakdownItemDto: {
+            category: string;
+            /** Format: int32 */
+            count: number;
+            /** Format: double */
+            percentage: number;
+        };
         DashboardFeedSummaryDto: {
             /** Format: int32 */
             criticalCount: number;
@@ -293,6 +456,75 @@ export interface components {
             reopenedCount: number;
             /** Format: int32 */
             resolvedTodayCount: number;
+            /** Format: int32 */
+            escalatedCount: number;
+        };
+        DetectorDetailDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description: string;
+            scope: string;
+            targetModule: string;
+            /** Format: int32 */
+            expectedCadenceSeconds: number;
+            webhookUrl?: string | null;
+            adminStatus: string;
+            healthStatus: string;
+            /** Format: date-time */
+            lastRunAtUtc?: string | null;
+            /** Format: date-time */
+            lastHealthyHeartbeatUtc?: string | null;
+            /** Format: date-time */
+            createdAtUtc: string;
+            reliabilityStats: components["schemas"]["DetectorReliabilityStatsDto"];
+            recentRuns: components["schemas"]["RecentRunSummaryDto"][];
+            activeIssues: components["schemas"]["LinkedActiveIssueDto"][];
+        };
+        DetectorListItemDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description: string;
+            scope: string;
+            targetModule: string;
+            /** Format: int32 */
+            expectedCadenceSeconds: number;
+            webhookUrl?: string | null;
+            adminStatus: string;
+            healthStatus: string;
+            /** Format: date-time */
+            lastRunAtUtc?: string | null;
+            /** Format: date-time */
+            lastHealthyHeartbeatUtc?: string | null;
+            /** Format: double */
+            passRate30d: number;
+            /** Format: int32 */
+            totalRuns30d: number;
+            /** Format: int32 */
+            activeIssuesCount: number;
+        };
+        DetectorReliabilityStatsDto: {
+            /** Format: date-time */
+            lastSuccessfulRunAtUtc?: string | null;
+            /** Format: date-time */
+            lastFailureAtUtc?: string | null;
+            /** Format: int32 */
+            totalRuns30d: number;
+            /** Format: double */
+            passRate30d: number;
+        };
+        DetectorSummaryDto: {
+            /** Format: int32 */
+            totalCount: number;
+            /** Format: int32 */
+            healthyCount: number;
+            /** Format: int32 */
+            failingCount: number;
+            /** Format: int32 */
+            silentCount: number;
+            /** Format: int32 */
+            pausedCount: number;
         };
         DismissIssueRequest: {
             dismissalReason: string;
@@ -342,6 +574,44 @@ export interface components {
             summary: components["schemas"]["DashboardFeedSummaryDto"];
             items: components["schemas"]["IssueFeedItemDto"][];
         };
+        HistoricalIssueItemDto: {
+            /** Format: uuid */
+            id: string;
+            correlationKey: string;
+            title: string;
+            /** Format: uuid */
+            detectorId: string;
+            detectorName: string;
+            scope: string;
+            currentSeverity: string;
+            /** Format: int32 */
+            severityRank: number;
+            status: string;
+            /** Format: int32 */
+            escalationLevel: number;
+            /** Format: int32 */
+            occurrenceCount: number;
+            currentAssignee?: string | null;
+            /** Format: date-time */
+            createdAtUtc: string;
+            /** Format: date-time */
+            resolvedAtUtc?: string | null;
+            /** Format: date-time */
+            dismissedAtUtc?: string | null;
+            /** Format: date-time */
+            reopenedAtUtc?: string | null;
+            /** Format: date-time */
+            acknowledgedAtUtc?: string | null;
+            /** Format: date-time */
+            lastOccurrenceAtUtc: string;
+        };
+        HistoricalIssuesResponse: {
+            items: components["schemas"]["HistoricalIssueItemDto"][];
+            /** Format: int32 */
+            totalReturned: number;
+            /** Format: int32 */
+            clampedLimit: number;
+        };
         HttpValidationProblemDetails: {
             type?: string | null;
             title?: string | null;
@@ -375,7 +645,44 @@ export interface components {
             outcome: string;
             /** Format: int32 */
             processedFindingsCount: number;
+            /** Format: int32 */
+            totalFindingsProcessed: number;
+            /** Format: int32 */
+            newIssuesCreated: number;
+            /** Format: int32 */
+            recurrencesRecorded: number;
             results: components["schemas"]["FindingResultItem"][];
+        };
+        InspectionRunDetailDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            detectorId: string;
+            /** Format: date-time */
+            executionTimestampUtc: string;
+            triggerSource: string;
+            outcome: string;
+            /** Format: int32 */
+            durationMs: number;
+            failureReason?: string | null;
+            /** Format: int32 */
+            findingsCount: number;
+            discoveredIssueIds: string[];
+        };
+        InspectionRunLogResponse: {
+            /** Format: int32 */
+            totalCount: number;
+            runs: components["schemas"]["InspectionRunDetailDto"][];
+        };
+        InspectionRunResultDto: {
+            /** Format: uuid */
+            runId: string;
+            outcome: string;
+            /** Format: int32 */
+            durationMs: number;
+            failureReason?: string | null;
+            /** Format: int32 */
+            findingsCount: number;
         };
         InvestigationNoteDto: {
             /** Format: uuid */
@@ -495,6 +802,22 @@ export interface components {
             /** Format: date-time */
             lastOccurrenceAtUtc: string;
         };
+        LinkedActiveIssueDto: {
+            /** Format: uuid */
+            id: string;
+            correlationKey: string;
+            title: string;
+            currentSeverity: string;
+            /** Format: int32 */
+            severityRank: number;
+            status: string;
+            /** Format: int32 */
+            escalationLevel: number;
+            /** Format: int32 */
+            occurrenceCount: number;
+            /** Format: date-time */
+            lastOccurrenceAtUtc: string;
+        };
         LoginRequest: {
             username: string;
             password: string;
@@ -554,6 +877,19 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        RecentRunSummaryDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            executionTimestampUtc: string;
+            triggerSource: string;
+            outcome: string;
+            /** Format: int32 */
+            durationMs: number;
+            failureReason?: string | null;
+            /** Format: int32 */
+            findingsCount: number;
+        };
         RecordManualVerificationRequest: {
             cleanPassed: boolean;
             evidenceNotes: string;
@@ -561,6 +897,31 @@ export interface components {
         RecordRemediationRequest: {
             actionCategory: string;
             summaryDescription: string;
+        };
+        RegisterDetectorRequest: {
+            name: string;
+            description: string;
+            scope: string;
+            targetModule: string;
+            /** Format: int32 */
+            expectedCadenceSeconds: number;
+            webhookUrl?: string | null;
+        };
+        ReliabilityKpiResponse: {
+            /** Format: int32 */
+            totalIssuesCreated: number;
+            /** Format: double */
+            resolutionRatePercentage: number;
+            /** Format: double */
+            avgTimeToAcknowledgeHours?: number | null;
+            /** Format: double */
+            avgTimeToResolveHours?: number | null;
+            /** Format: double */
+            detectorPassRatePercentage: number;
+            /** Format: int32 */
+            reopenedIssuesCount: number;
+            scopeBreakdown: components["schemas"]["BreakdownItemDto"][];
+            severityBreakdown: components["schemas"]["BreakdownItemDto"][];
         };
         RemediationRecordDto: {
             /** Format: uuid */
@@ -574,6 +935,17 @@ export interface components {
             timestampUtc: string;
             isSuperseded: boolean;
         };
+        ToggleDetectorStatusRequest: {
+            action: string;
+        };
+        UpdateDetectorRequest: {
+            description: string;
+            scope: string;
+            targetModule: string;
+            /** Format: int32 */
+            expectedCadenceSeconds: number;
+            webhookUrl?: string | null;
+        };
         VerificationRecordDto: {
             /** Format: uuid */
             id: string;
@@ -586,6 +958,21 @@ export interface components {
             /** Format: date-time */
             timestampUtc: string;
             isSuperseded: boolean;
+        };
+        VerificationResultDto: {
+            /** Format: uuid */
+            verificationId: string;
+            /** Format: uuid */
+            issueId: string;
+            /** Format: uuid */
+            runId: string;
+            verificationMethod: string;
+            cleanPassed: boolean;
+            evidenceNotes: string;
+            verifiedBy: string;
+            /** Format: date-time */
+            timestampUtc: string;
+            gateUnlocked: boolean;
         };
     };
     responses: never;
@@ -634,6 +1021,500 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetDetectors: {
+        parameters: {
+            query?: {
+                Scope?: string;
+                AdminStatus?: string;
+                HealthStatus?: string;
+                Search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetectorListItemDto"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RegisterDetector: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterDetectorRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetectorDetailDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetDetectorSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetectorSummaryDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetDetectorById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetectorDetailDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateDetector: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDetectorRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetInspectionRuns: {
+        parameters: {
+            query?: {
+                StartDateUtc?: string;
+                EndDateUtc?: string;
+                Outcome?: string;
+                TriggerSource?: string;
+                Limit?: number;
+                Offset?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionRunLogResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ToggleDetectorStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ToggleDetectorStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    TriggerManualRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionRunResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetReliabilityKpi: {
+        parameters: {
+            query: {
+                FromUtc: string;
+                ToUtc: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReliabilityKpiResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    GetHistoricalIssues: {
+        parameters: {
+            query: {
+                FromUtc: string;
+                ToUtc: string;
+                Status?: string;
+                Scope?: string;
+                DetectorId?: string;
+                Severity?: string;
+                Search?: string;
+                Limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoricalIssuesResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
                 };
             };
         };
@@ -705,6 +1586,7 @@ export interface operations {
                 Severity?: string;
                 Scope?: string;
                 Search?: string;
+                EscalatedOnly?: boolean;
             };
             header?: never;
             path?: never;
@@ -1164,6 +2046,73 @@ export interface operations {
             };
         };
     };
+    TriggerVerificationRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationResultDto"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Gateway Timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     ResolveIssue: {
         parameters: {
             query?: never;
@@ -1379,8 +2328,32 @@ export type OfficerRole = 'EdpOfficer' | 'SystemAnalyst' | 'Lead';
 export type MonitoringScope = 'DataIntegrity' | 'ProcessIntegrity' | 'DataSync' | 'Infrastructure';
 export type IssueSeverity = 'Low' | 'Medium' | 'High' | 'Critical';
 export type IssueStatus = 'Open' | 'Acknowledged' | 'Investigating' | 'Resolved' | 'Dismissed' | 'Reopened';
-export type TriggerSource = 'Scheduled' | 'Manual' | 'EventHook';
+export type TriggerSource = 'Scheduled' | 'Manual' | 'EventHook' | 'AutomatedReRun';
 export type TelemetryOutcome = 'Passed' | 'FindingDiscovered' | 'ExecutionFailed';
 export type RemediationActionCategory = 'DataCorrection' | 'ServiceRestart' | 'ConfigurationAdjustment' | 'CodeRemediationRequested';
 export type DismissalReason = 'FalsePositive' | 'AcceptedOperationalException' | 'DuplicateManualReport';
-export type VerificationMethod = 'ManualVerification' | 'AutomatedSupervisor' | 'TelemetryRecurrence';
+export type VerificationMethod = 'ManualVerification' | 'AutomatedSupervisor' | 'TelemetryRecurrence' | 'AutomatedReRun';
+
+// Stage 3 Detector Management & Telemetry Types
+export type DetectorListItemDto = components["schemas"]["DetectorListItemDto"];
+export type DetectorSummaryDto = components["schemas"]["DetectorSummaryDto"];
+export type DetectorDetailDto = components["schemas"]["DetectorDetailDto"];
+export type DetectorReliabilityStatsDto = components["schemas"]["DetectorReliabilityStatsDto"];
+export type RecentRunSummaryDto = components["schemas"]["RecentRunSummaryDto"];
+export type LinkedActiveIssueDto = components["schemas"]["LinkedActiveIssueDto"];
+export type InspectionRunLogResponse = components["schemas"]["InspectionRunLogResponse"];
+export type InspectionRunDetailDto = components["schemas"]["InspectionRunDetailDto"];
+export type RegisterDetectorRequest = components["schemas"]["RegisterDetectorRequest"];
+export type UpdateDetectorRequest = components["schemas"]["UpdateDetectorRequest"];
+export type ToggleDetectorStatusRequest = components["schemas"]["ToggleDetectorStatusRequest"];
+export type InspectionRunResultDto = components["schemas"]["InspectionRunResultDto"];
+export type VerificationResultDto = components["schemas"]["VerificationResultDto"];
+
+export type DetectorHealth = 'Healthy' | 'Degraded' | 'Failing' | 'Silent';
+export type AdminStatus = 'Active' | 'Paused' | 'Retired';
+
+// Stage 4 Historical Reliability Analytics & Reporting Types
+export type ReliabilityKpiResponse = components["schemas"]["ReliabilityKpiResponse"];
+export type BreakdownItemDto = components["schemas"]["BreakdownItemDto"];
+export type HistoricalIssuesResponse = components["schemas"]["HistoricalIssuesResponse"];
+export type HistoricalIssueItemDto = components["schemas"]["HistoricalIssueItemDto"];
