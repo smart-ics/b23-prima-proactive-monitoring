@@ -91,41 +91,41 @@ const latestVerification = computed(() => {
 function getSeverityBadgeClass(sev: string): string {
   switch (sev) {
     case 'Critical':
-      return 'bg-rose-500/20 text-rose-300 border border-rose-500/40';
+      return 'bg-rose-50 text-rose-700 border border-rose-200';
     case 'High':
-      return 'bg-orange-500/20 text-orange-300 border border-orange-500/40';
+      return 'bg-orange-50 text-orange-700 border border-orange-200';
     case 'Medium':
-      return 'bg-amber-500/20 text-amber-300 border border-amber-500/40';
+      return 'bg-amber-50 text-amber-800 border border-amber-200';
     case 'Low':
-      return 'bg-sky-500/20 text-sky-300 border border-sky-500/40';
+      return 'bg-sky-50 text-sky-700 border border-sky-200';
     default:
-      return 'bg-slate-700/50 text-slate-300 border border-slate-600/50';
+      return 'bg-slate-100 text-slate-700 border border-slate-200';
   }
 }
 
 function getStatusBadgeClass(st: string): string {
   switch (st) {
     case 'Open':
-      return 'bg-rose-500/20 text-rose-300 border border-rose-500/40';
+      return 'bg-rose-50 text-rose-700 border border-rose-200';
     case 'Acknowledged':
-      return 'bg-amber-500/20 text-amber-300 border border-amber-500/40';
+      return 'bg-sky-50 text-sky-700 border border-sky-200';
     case 'Investigating':
-      return 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40';
+      return 'bg-indigo-50 text-indigo-700 border border-indigo-200';
     case 'Resolved':
-      return 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+      return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
     case 'Dismissed':
-      return 'bg-slate-700/60 text-slate-400 border border-slate-600/50';
+      return 'bg-slate-100 text-slate-700 border border-slate-200';
     case 'Reopened':
-      return 'bg-purple-500/20 text-purple-300 border border-purple-500/40';
+      return 'bg-purple-50 text-purple-700 border border-purple-200';
     default:
-      return 'bg-slate-700/50 text-slate-300 border border-slate-600/50';
+      return 'bg-slate-100 text-slate-700 border border-slate-200';
   }
 }
 </script>
 
 <template>
   <header
-    class="sticky top-0 z-20 backdrop-blur bg-slate-900/90 border-b border-slate-800 px-6 py-4 transition-all"
+    class="backdrop-blur bg-white/95 border-b border-slate-200 px-6 py-4 transition-all shadow-sm"
   >
     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
       <!-- Left: Back Navigation, Title, Badges, Copy Key -->
@@ -133,7 +133,7 @@ function getStatusBadgeClass(st: string): string {
         <button
           type="button"
           @click="navigateBack"
-          class="mt-1 p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+          class="mt-1 p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
           :title="backLabel"
           :aria-label="backLabel"
         >
@@ -141,7 +141,7 @@ function getStatusBadgeClass(st: string): string {
           <span v-else class="text-xs font-medium whitespace-nowrap px-1">{{ backLabel }}</span>
         </button>
 
-        <div class="min-w-0 flex-1">
+        <div class="min-w-0 flex-1 overflow-hidden">
           <div class="flex flex-wrap items-center gap-2 mb-1.5">
             <!-- Severity Badge -->
             <span
@@ -168,17 +168,17 @@ function getStatusBadgeClass(st: string): string {
               v-if="detectorId"
               :to="`/detectors/${detectorId}`"
               v-tooltip.bottom="'View detector operational details (S-04)'"
-              class="px-2.5 py-0.5 text-xs font-medium rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 hover:border-slate-500 inline-flex items-center gap-1.5 transition-colors group cursor-pointer"
+              class="px-2.5 py-0.5 text-xs font-medium rounded-md bg-slate-100 hover:bg-slate-200 text-slate-900 hover:text-slate-900 border border-slate-300 hover:border-slate-400 inline-flex items-center gap-1.5 transition-colors group cursor-pointer"
             >
-              <i class="pi pi-compass text-[11px] text-indigo-400 group-hover:text-indigo-300"></i>
+              <i class="pi pi-compass text-[11px] text-indigo-600 group-hover:text-indigo-500"></i>
               <span>{{ detectorName }}</span>
-              <i class="pi pi-arrow-up-right text-[9px] text-slate-400 group-hover:text-slate-200"></i>
+              <i class="pi pi-arrow-up-right text-[9px] text-slate-500 group-hover:text-slate-600"></i>
             </router-link>
             <span
               v-else
-              class="px-2.5 py-0.5 text-xs font-medium rounded-md bg-slate-800 text-slate-300 border border-slate-700 inline-flex items-center gap-1"
+              class="px-2.5 py-0.5 text-xs font-medium rounded-md bg-slate-100 text-slate-700 border border-slate-300 inline-flex items-center gap-1"
             >
-              <i class="pi pi-compass text-[11px] text-slate-400"></i>
+              <i class="pi pi-compass text-[11px] text-slate-500"></i>
               {{ detectorName }}
             </span>
 
@@ -187,32 +187,32 @@ function getStatusBadgeClass(st: string): string {
               v-if="correlationKey"
               type="button"
               @click="copyCorrelationKey"
-              class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-mono text-slate-400 hover:text-slate-200 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 rounded-md transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-mono text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-md transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-500"
               :title="`Copy Correlation Key: ${correlationKey}`"
             >
-              <Check v-if="isCopied" class="w-3.5 h-3.5 text-emerald-400" />
-              <Copy v-else class="w-3.5 h-3.5 text-slate-400" />
+              <Check v-if="isCopied" class="w-3.5 h-3.5 text-emerald-600" />
+              <Copy v-else class="w-3.5 h-3.5 text-slate-500" />
               <span class="truncate max-w-[150px] sm:max-w-[220px]">{{ correlationKey }}</span>
-              <span v-if="isCopied" class="text-emerald-400 text-[10px] font-sans">Copied!</span>
+              <span v-if="isCopied" class="text-emerald-600 text-[10px] font-sans">Copied!</span>
             </button>
           </div>
 
           <!-- Main Issue Title -->
-          <h1 class="text-xl font-bold text-white tracking-tight truncate" :title="title">
+          <h1 class="text-xl font-bold text-slate-900 tracking-tight truncate min-w-0" :title="title">
             {{ title }}
           </h1>
         </div>
       </div>
 
       <!-- Right: Context-Sensitive Action Bar -->
-      <div class="flex items-center flex-wrap gap-2.5 shrink-0">
+      <div class="flex items-center flex-wrap gap-2.5 shrink-0 max-w-xl">
         <!-- 1. Open State -->
         <template v-if="status === 'Open'">
           <button
             type="button"
             :disabled="isActionLoading"
             @click="emit('take-it')"
-            class="px-4 py-2 text-sm font-semibold rounded-lg bg-slate-100 hover:bg-white text-slate-900 shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-white disabled:opacity-50"
+            class="px-4 py-2 text-sm font-semibold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-slate-900 disabled:opacity-50"
           >
             <i class="pi pi-bolt text-xs"></i>
             Take It
@@ -221,18 +221,18 @@ function getStatusBadgeClass(st: string): string {
             type="button"
             :disabled="isActionLoading"
             @click="emit('open-assign-modal')"
-            class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+            class="px-3.5 py-2 text-sm font-medium rounded-lg bg-white hover:bg-slate-50 text-slate-900 border border-slate-300 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
           >
-            <i class="pi pi-user-plus text-xs text-slate-400"></i>
+            <i class="pi pi-user-plus text-xs text-slate-500"></i>
             Assign to…
           </button>
           <button
             type="button"
             :disabled="isActionLoading"
             @click="emit('open-dismiss-modal')"
-            class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-800/60 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50"
+            class="px-3.5 py-2 text-sm font-medium rounded-lg bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-300 hover:border-rose-300 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50"
           >
-            <i class="pi pi-ban text-xs text-rose-400"></i>
+            <i class="pi pi-ban text-xs text-rose-600"></i>
             Dismiss
           </button>
         </template>
@@ -243,7 +243,7 @@ function getStatusBadgeClass(st: string): string {
             type="button"
             :disabled="isActionLoading"
             @click="emit('take-it')"
-            class="px-4 py-2 text-sm font-semibold rounded-lg bg-purple-600 hover:bg-purple-500 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-purple-400 disabled:opacity-50"
+            class="px-4 py-2 text-sm font-semibold rounded-lg bg-purple-600 hover:bg-purple-500 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-purple-500 disabled:opacity-50"
           >
             <i class="pi pi-bolt text-xs"></i>
             Take It
@@ -252,18 +252,18 @@ function getStatusBadgeClass(st: string): string {
             type="button"
             :disabled="isActionLoading"
             @click="emit('open-assign-modal')"
-            class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+            class="px-3.5 py-2 text-sm font-medium rounded-lg bg-white hover:bg-slate-50 text-slate-900 border border-slate-300 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
           >
-            <i class="pi pi-user-plus text-xs text-slate-400"></i>
+            <i class="pi pi-user-plus text-xs text-slate-500"></i>
             Assign to…
           </button>
           <button
             type="button"
             :disabled="isActionLoading"
             @click="emit('open-dismiss-modal')"
-            class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-800/60 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50"
+            class="px-3.5 py-2 text-sm font-medium rounded-lg bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-300 hover:border-rose-300 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50"
           >
-            <i class="pi pi-ban text-xs text-rose-400"></i>
+            <i class="pi pi-ban text-xs text-rose-600"></i>
             Dismiss
           </button>
         </template>
@@ -274,7 +274,7 @@ function getStatusBadgeClass(st: string): string {
             type="button"
             :disabled="isActionLoading"
             @click="emit('start-investigating')"
-            class="px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-indigo-500 disabled:opacity-50"
+            class="px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-indigo-500 disabled:opacity-50"
           >
             <i class="pi pi-search text-xs"></i>
             Start Investigating
@@ -283,18 +283,18 @@ function getStatusBadgeClass(st: string): string {
             type="button"
             :disabled="isActionLoading"
             @click="emit('open-assign-modal')"
-            class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+            class="px-3.5 py-2 text-sm font-medium rounded-lg bg-white hover:bg-slate-50 text-slate-900 border border-slate-300 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
           >
-            <i class="pi pi-user-edit text-xs text-slate-400"></i>
+            <i class="pi pi-user-edit text-xs text-slate-500"></i>
             Reassign
           </button>
           <button
             type="button"
             :disabled="isActionLoading"
             @click="emit('open-dismiss-modal')"
-            class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-800/60 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50"
+            class="px-3.5 py-2 text-sm font-medium rounded-lg bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-300 hover:border-rose-300 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50"
           >
-            <i class="pi pi-ban text-xs text-rose-400"></i>
+            <i class="pi pi-ban text-xs text-rose-600"></i>
             Dismiss
           </button>
         </template>
@@ -307,7 +307,7 @@ function getStatusBadgeClass(st: string): string {
               type="button"
               :disabled="isActionLoading"
               @click="emit('open-remediation-modal')"
-              class="px-4 py-2 text-sm font-semibold rounded-lg bg-slate-100 hover:bg-white text-slate-900 shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-white disabled:opacity-50"
+              class="px-4 py-2 text-sm font-semibold rounded-lg bg-slate-900 hover:bg-slate-800 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-slate-900 disabled:opacity-50"
             >
               <i class="pi pi-wrench text-xs"></i>
               Record Remediation
@@ -317,27 +317,27 @@ function getStatusBadgeClass(st: string): string {
               type="button"
               disabled
               v-tooltip.bottom="'🔒 Remediation & verification required'"
-              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800/60 text-slate-500 border border-slate-800 cursor-not-allowed flex items-center gap-1.5"
+              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-200/60 text-slate-400 border border-slate-300 cursor-not-allowed flex items-center gap-1.5"
             >
-              <Lock class="w-3.5 h-3.5 text-slate-500" />
+              <Lock class="w-3.5 h-3.5 text-slate-400" />
               Mark Resolved
             </button>
             <!-- Secondary buttons -->
             <button
               type="button"
               @click="emit('focus-note-composer')"
-              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-white hover:bg-slate-50 text-slate-900 border border-slate-300 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              <i class="pi pi-comment text-xs text-slate-400"></i>
+              <i class="pi pi-comment text-xs text-slate-500"></i>
               Add Note
             </button>
             <button
               type="button"
               :disabled="isActionLoading"
               @click="emit('open-dismiss-modal')"
-              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-800/60 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50"
+              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-300 hover:border-rose-300 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50"
             >
-              <i class="pi pi-ban text-xs text-rose-400"></i>
+              <i class="pi pi-ban text-xs text-rose-600"></i>
               Dismiss
             </button>
           </template>
@@ -350,7 +350,7 @@ function getStatusBadgeClass(st: string): string {
                 type="button"
                 :disabled="isActionLoading || isTriggeringVerification"
                 @click="emit('trigger-verification')"
-                class="px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-indigo-400 disabled:opacity-50 cursor-pointer"
+                class="px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-indigo-500 disabled:opacity-50 cursor-pointer"
               >
                 <i v-if="isTriggeringVerification" class="pi pi-spin pi-spinner text-xs"></i>
                 <i v-else class="pi pi-play text-xs"></i>
@@ -360,9 +360,9 @@ function getStatusBadgeClass(st: string): string {
                 type="button"
                 :disabled="isActionLoading || isTriggeringVerification"
                 @click="emit('open-verification-modal')"
-                class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 cursor-pointer"
+                class="px-3.5 py-2 text-sm font-medium rounded-lg bg-white hover:bg-slate-50 text-slate-900 border border-slate-300 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 cursor-pointer"
               >
-                <i class="pi pi-verified text-xs text-emerald-400"></i>
+                <i class="pi pi-verified text-xs text-emerald-600"></i>
                 <span>Manual Verification</span>
               </button>
             </template>
@@ -373,16 +373,16 @@ function getStatusBadgeClass(st: string): string {
                 type="button"
                 :disabled="isActionLoading"
                 @click="emit('open-verification-modal')"
-                class="px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-emerald-400 disabled:opacity-50 cursor-pointer"
+                class="px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-emerald-500 disabled:opacity-50 cursor-pointer"
               >
                 <i class="pi pi-verified text-xs"></i>
                 <span>Manual Verification</span>
               </button>
               <span
-                class="text-xs text-slate-400 italic flex items-center gap-1 px-1"
+                class="text-xs text-slate-500 italic flex items-center gap-1 px-1"
                 title="Configure Webhook URL on detector to enable automated re-runs"
               >
-                <i class="pi pi-info-circle text-[11px] text-slate-500"></i>
+                <i class="pi pi-info-circle text-[11px] text-slate-400"></i>
                 <span>No webhook configured for automated re-run</span>
               </span>
             </template>
@@ -392,27 +392,27 @@ function getStatusBadgeClass(st: string): string {
               type="button"
               disabled
               v-tooltip.bottom="'🔒 Clean verification required'"
-              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800/60 text-slate-500 border border-slate-800 cursor-not-allowed flex items-center gap-1.5"
+              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-200/60 text-slate-400 border border-slate-300 cursor-not-allowed flex items-center gap-1.5"
             >
-              <Lock class="w-3.5 h-3.5 text-slate-500" />
+              <Lock class="w-3.5 h-3.5 text-slate-400" />
               Mark Resolved
             </button>
             <!-- Secondary buttons -->
             <button
               type="button"
               @click="emit('focus-note-composer')"
-              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-white hover:bg-slate-50 text-slate-900 border border-slate-300 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              <i class="pi pi-comment text-xs text-slate-400"></i>
+              <i class="pi pi-comment text-xs text-slate-500"></i>
               Add Note
             </button>
             <button
               type="button"
               :disabled="isActionLoading || isTriggeringVerification"
               @click="emit('open-dismiss-modal')"
-              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-800/60 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50"
+              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-300 hover:border-rose-300 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50"
             >
-              <i class="pi pi-ban text-xs text-rose-400"></i>
+              <i class="pi pi-ban text-xs text-rose-600"></i>
               Dismiss
             </button>
           </template>
@@ -425,7 +425,7 @@ function getStatusBadgeClass(st: string): string {
                 type="button"
                 :disabled="isActionLoading || isTriggeringVerification"
                 @click="emit('trigger-verification')"
-                class="px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-indigo-400 disabled:opacity-50 cursor-pointer"
+                class="px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-indigo-500 disabled:opacity-50 cursor-pointer"
               >
                 <i v-if="isTriggeringVerification" class="pi pi-spin pi-spinner text-xs"></i>
                 <i v-else class="pi pi-play text-xs"></i>
@@ -435,9 +435,9 @@ function getStatusBadgeClass(st: string): string {
                 type="button"
                 :disabled="isActionLoading || isTriggeringVerification"
                 @click="emit('open-verification-modal')"
-                class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 cursor-pointer"
+                class="px-3.5 py-2 text-sm font-medium rounded-lg bg-white hover:bg-slate-50 text-slate-900 border border-slate-300 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 cursor-pointer"
               >
-                <i class="pi pi-verified text-xs text-emerald-400"></i>
+                <i class="pi pi-verified text-xs text-emerald-600"></i>
                 <span>Manual Verification</span>
               </button>
             </template>
@@ -448,16 +448,16 @@ function getStatusBadgeClass(st: string): string {
                 type="button"
                 :disabled="isActionLoading"
                 @click="emit('open-verification-modal')"
-                class="px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-emerald-400 disabled:opacity-50 cursor-pointer"
+                class="px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-emerald-500 disabled:opacity-50 cursor-pointer"
               >
                 <i class="pi pi-verified text-xs"></i>
                 <span>Manual Verification</span>
               </button>
               <span
-                class="text-xs text-slate-400 italic flex items-center gap-1 px-1"
+                class="text-xs text-slate-500 italic flex items-center gap-1 px-1"
                 title="Configure Webhook URL on detector to enable automated re-runs"
               >
-                <i class="pi pi-info-circle text-[11px] text-slate-500"></i>
+                <i class="pi pi-info-circle text-[11px] text-slate-400"></i>
                 <span>No webhook configured for automated re-run</span>
               </span>
             </template>
@@ -467,9 +467,9 @@ function getStatusBadgeClass(st: string): string {
               type="button"
               :disabled="isActionLoading || isTriggeringVerification"
               @click="emit('open-remediation-modal')"
-              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 cursor-pointer"
+              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-white hover:bg-slate-50 text-slate-900 border border-slate-300 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 cursor-pointer"
             >
-              <i class="pi pi-refresh text-xs text-amber-400"></i>
+              <i class="pi pi-refresh text-xs text-amber-600"></i>
               <span>Record Remediation (Retry)</span>
             </button>
             <!-- Disabled Mark Resolved -->
@@ -477,18 +477,18 @@ function getStatusBadgeClass(st: string): string {
               type="button"
               disabled
               v-tooltip.bottom="'🔒 Verification failed. Retry remediation & clean verification required'"
-              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800/60 text-slate-500 border border-slate-800 cursor-not-allowed flex items-center gap-1.5"
+              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-200/60 text-slate-400 border border-slate-300 cursor-not-allowed flex items-center gap-1.5"
             >
-              <Lock class="w-3.5 h-3.5 text-slate-500" />
+              <Lock class="w-3.5 h-3.5 text-slate-400" />
               Mark Resolved
             </button>
             <!-- Secondary Add Note -->
             <button
               type="button"
               @click="emit('focus-note-composer')"
-              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-white hover:bg-slate-50 text-slate-900 border border-slate-300 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              <i class="pi pi-comment text-xs text-slate-400"></i>
+              <i class="pi pi-comment text-xs text-slate-500"></i>
               Add Note
             </button>
           </template>
@@ -500,7 +500,7 @@ function getStatusBadgeClass(st: string): string {
               type="button"
               :disabled="isActionLoading"
               @click="emit('resolve')"
-              class="px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-emerald-400 disabled:opacity-50"
+              class="px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-colors flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-emerald-500 disabled:opacity-50"
             >
               <CheckCircle2 class="w-4 h-4 text-white" />
               Mark Resolved
@@ -509,9 +509,9 @@ function getStatusBadgeClass(st: string): string {
             <button
               type="button"
               @click="emit('focus-note-composer')"
-              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              class="px-3.5 py-2 text-sm font-medium rounded-lg bg-white hover:bg-slate-50 text-slate-900 border border-slate-300 transition-colors flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              <i class="pi pi-comment text-xs text-slate-400"></i>
+              <i class="pi pi-comment text-xs text-slate-500"></i>
               Add Note
             </button>
           </template>
@@ -520,9 +520,9 @@ function getStatusBadgeClass(st: string): string {
         <!-- 5. Resolved or Dismissed (Read-Only) -->
         <template v-else-if="status === 'Resolved' || status === 'Dismissed'">
           <div
-            class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1.5"
+            class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 text-slate-600 border border-slate-300 flex items-center gap-1.5"
           >
-            <i :class="status === 'Resolved' ? 'pi pi-check text-emerald-400' : 'pi pi-ban text-slate-400'"></i>
+            <i :class="status === 'Resolved' ? 'pi pi-check text-emerald-600' : 'pi pi-ban text-slate-500'"></i>
             Issue is {{ status }} (Read-Only)
           </div>
         </template>
