@@ -22,7 +22,7 @@ PrIMA is structured around a **5-stage vertical-slice delivery strategy** design
 2. **Complete Single-Screen Operational Resolution Loop (Stage 2):** Build the full Issue Detail Workbench (`S-02`) and modals (`M-01`–`M-03`) before portfolio management so EDP officers can triage, investigate, record remediations, enforce the mandatory Verification Gate (`BR-PRIMA-004`), and resolve or dismiss issues end-to-end.
 3. **Autonomous Supervision & Detector Portfolio (Stage 3):** Activate `MonitoringSupervisorWorker` (`BR-PRIMA-003`, `BR-PRIMA-005`, `BR-PRIMA-010`), `ExecutionFailed` anomaly synthesis, full Detector portfolio CRUD/health screens (`S-03`–`S-06`), and webhook-driven verification (`D-2`) on top of the proven issue engine.
 4. **Retrospective Analytics & v1.0 Quality Gate (Stage 4):** Deliver read-only period-close KPIs and historical issue audit exploration (`S-07`), then complete full-stack compliance verification against [PRIMA-UI-UX-GUIDELINE.md](./PRIMA-UI-UX-GUIDELINE.md) and all 10 domain business rules.
-5. **Pilot SIMRS Detector Suite & Hospital Rollout (Stage 5):** Implement real non-intrusive SIMRS Detectors (`BR-PRIMA-007`) across all four monitoring scopes (`DataIntegrity`, `ProcessIntegrity`, `DataSync`, `Infrastructure`), harden on-premise hospital deployment security, run staging UAT, and transition EDP teams to production.
+5. **Detector Handshake Protocol, Pilot SIMRS Detector Suite & Hospital Rollout (Stage 5):** Implement the zero-drift Detector Enrollment & Handshake protocol (`POST /api/detectors/enrollment-tokens`, `POST /api/detectors/handshake`), deploy the standardized runner SDK/template, implement real non-intrusive SIMRS Detectors (`BR-PRIMA-007`) across all four monitoring scopes (`DataIntegrity`, `ProcessIntegrity`, `DataSync`, `Infrastructure`), harden on-premise hospital deployment security, run staging UAT, and transition EDP teams to production.
 
 ```mermaid
 flowchart LR
@@ -40,7 +40,7 @@ flowchart LR
 | **Stage 2** | Issue Triage, Investigation & Verification-Gated Resolution | Deliver the complete `S-02` operational workbench covering assignment, evidence review, notes, remediation, mandatory verification, dismissal, and resolution. | Complete End-to-End Manual Issue Resolution Loop | `S-02`, `M-01`, `M-02`, `M-03` | `A-3`, `B-1`–`B-3`, `C-1`–`C-3`, `D-1`, `D-3`, `D-4` | `BR-PRIMA-004`, `BR-PRIMA-006`, `BR-PRIMA-008`, `BR-PRIMA-009` |
 | **Stage 3** | Detector Portfolio, Automated Supervision & Webhook Verification | Enable detector lifecycle management, autonomous silence/escalation supervision, `ExecutionFailed` synthesis, and webhook-driven verification. | Autonomous Proactive Supervision & Self-Monitoring | `S-03`, `S-04`, `S-05`, `S-06` (+ `S-01`/`S-02` upgrades) | `D-2`, `E-1`–`E-7`, `F-1`, `F-2`, `G-1`, `G-2` | `BR-PRIMA-003`, `BR-PRIMA-005`, `BR-PRIMA-010` |
 | **Stage 4** | Historical Reliability Analytics, Reporting & v1.0 Quality Gate | Provide read-only period-close reliability KPIs and audit history (`S-07`), and verify full v1.0 conformance across domain, API, and UX rules. | Feature-Complete PrIMA v1.0 Release Candidate | `S-07` (+ full-app polish) | `H-1`, `H-2` | Full verification of `BR-PRIMA-001`–`010` |
-| **Stage 5** | Pilot SIMRS Detector Suite, Hardening & Hospital Production Rollout | Build non-intrusive SIMRS pilot detectors across all 4 monitoring scopes, harden on-premise deployment, complete UAT, and go live in hospital ops. | Hospital On-Premise Production Go-Live | Production Operational Rollout | End-to-end validation of `A-1`–`H-2` | `BR-PRIMA-007` (production SIMRS validation) |
+| **Stage 5** | Detector Handshake Protocol, Pilot SIMRS Detector Suite & Hospital Production Rollout | Implement zero-drift detector enrollment/handshake protocol, build non-intrusive SIMRS pilot detectors across all 4 monitoring scopes, harden on-premise deployment, complete UAT, and go live in hospital ops. | Hospital On-Premise Production Go-Live & Automated Detector Enrollment | `S-03`/`S-05` (Enrollment Token Modal), Production Operational Rollout | End-to-end validation of `A-1`–`H-2`, Handshake Enrollment | `BR-PRIMA-007` (production SIMRS validation), `BR-PRIMA-010` (cadence drift guard) |
 
 ---
 
@@ -212,36 +212,50 @@ Deliver retrospective period-close reporting, operational reliability KPIs, and 
 
 ---
 
-### Stage 5: Pilot SIMRS Detector Suite, Hardening & Hospital Production Rollout
+### Stage 5: Detector Handshake Protocol, Pilot SIMRS Detector Suite & Hospital Production Rollout
 
 #### Objective
-Build, safety-validate, and deploy the initial production Detector suite covering all four SIMRS monitoring scopes under strict non-interference guarantees (`BR-PRIMA-007`), harden on-premise security and operational packaging, and transition hospital EDP teams onto PrIMA through staging UAT and production hypercare.
+Implement the zero-drift Detector Enrollment & Handshake protocol to eliminate manual registration discrepancies, build and safety-validate the initial production Detector suite covering all four SIMRS monitoring scopes under strict non-interference guarantees (`BR-PRIMA-007`), harden on-premise security and operational packaging, and transition hospital EDP teams onto PrIMA through staging UAT and production hypercare.
 
 #### Target Milestone
-**Hospital On-Premise Production Go-Live** — PrIMA and its initial 4-scope SIMRS Detector suite run autonomously in the hospital environment, catching real operational exceptions early without impacting SIMRS transactions.
+**Hospital On-Premise Production Go-Live & Automated Detector Enrollment** — PrIMA, its automated detector handshake enrollment protocol, and its initial 4-scope SIMRS Detector suite run autonomously in the hospital environment, catching real operational exceptions early without configuration drift and without impacting SIMRS transactions.
 
 #### Scope & Deliverables
-- **Reference Detector SDK / Template & Pilot Suite:**
-  - Create a standardized, lightweight Detector runner template implementing `POST /api/ingestion/telemetry`, structured `TelemetryEvidence` payloads, `ExecutionFailed` error trapping, and an optional HTTP webhook endpoint for `Trigger Run` / `Trigger Verification Re-run`.
+- **Detector Enrollment & Handshake Protocol (Zero-Drift Auto-Registration):**
+  - **Backend Handshake & Token Slice (`Features/Detectors/Enrollment/*`):**
+    - `POST /api/detectors/enrollment-tokens`: Allows authenticated EDP officers to generate a cryptographically random, short-lived enrollment token (e.g., `PRM-TOKEN-...`) without needing to manually fill out technical metadata in advance.
+    - `POST /api/detectors/handshake`: Endpoint called by detector scripts on initial boot. Payload provides the detector's runtime technical manifest (`enrollmentToken`, `name`, `targetModule`, `scope`, `expectedCadenceSeconds`, `webhookUrl`, `description`, `version`). The endpoint validates the token, generates a unique permanent `detectorId` (GUID), provisions API credentials, and activates the detector in `dbo.Detectors`.
+    - Enforce sanity guardrails: enforce unique names (`BR-PRIMA-008`), bounded cadence limits (e.g., minimum 30s, maximum 86400s) to prevent circumventing silence supervision (`BR-PRIMA-010`), and single-use token expiration.
+    - Telemetry cadence drift monitoring: On subsequent `POST /api/ingestion/telemetry` runs, detect and warn if the detector's actual execution frequency diverges significantly from the registered `expectedCadenceSeconds`.
+  - **Frontend Integration (`S-03 Detector List` & `S-05 Detector Form`):**
+    - Add "Quick Enroll / Handshake" option: A modal on `S-03` and `S-05` to generate and copy an Enrollment Token with a single click, providing ready-to-copy environment variable snippets (`PRIMA_ENROLLMENT_TOKEN=...`, `PRIMA_SERVER_URL=...`) for edge technicians.
+    - Support visual `PendingEnrollment` state in `S-03` portfolio list for generated tokens awaiting initial detector contact.
+- **Reference Detector SDK / Runner Template (`src/tools/detector-runner-template/`) & Pilot Suite:**
+  - Create a standardized, lightweight Detector runner template implementing:
+    - Automatic initial bootstrap handshake: If unconfigured, exchanges `PRIMA_ENROLLMENT_TOKEN` for permanent `detectorId` via `POST /api/detectors/handshake` and caches configuration locally.
+    - Standardized `POST /api/ingestion/telemetry` client with structured `TelemetryEvidence` payloads.
+    - Comprehensive `ExecutionFailed` error trapping (`BR-PRIMA-005`).
+    - Optional local HTTP webhook listener endpoint for `Trigger Run` (`S-04`) and `Trigger Verification Re-run` (`S-02` / `D-2`).
   - Build and register initial pilot Detectors across all four scopes from [PrIMA Product Definition §3](./PrIMA%20-%20Product%20Definition.md#3-scope-of-monitoring):
     1. **Data Integrity:** *Journal Balance Detector* (unbalanced debit/credit ledger entries) and *Duplicate Receivable Detector* (duplicate receivable creation for a single source transaction).
     2. **Process Integrity:** *Missing Auto-Journal / Unprocessed Billing Pipeline Detector* (completed transactions missing expected downstream journal generation).
     3. **Data Synchronization:** *EMR Synchronization Detector* (failed or missing EMR sync records) and *SIMRS–HFIS Doctor Schedule Detector* (schedule mismatches between SIMRS and HFIS).
-    4. **Infrastructure & Service:** *Remote Print Server Queue Detector* (stalled or unresponsive print spooler queues).
+    4. **Infrastructure & Service:** *Remote Print Server Queue Detector* (stalled or unresponsive print spooler queues on hospital client stations).
 - **Operational Safety & Deployment Hardening (`BR-PRIMA-007` & Product Definition §9):**
   - Enforce non-intrusive read-only inspection constraints: provision dedicated read-only SIMRS database credentials (or read-replica connections), enforce strict query timeouts, and verify zero blocking locks or measurable latency impact during peak SIMRS hours.
   - Finalize hospital on-premise deployment packaging: TLS/HTTPS reverse-proxy configuration, secure environment/secret storage for JWT signing keys and per-detector `X-Detector-API-Key` credentials, health-check endpoints, structured application logging, SQL Server backup/retention policy for `InspectionRuns` and `Occurrences`, and optional secure remote access for the ICS team per hospital security policy.
   - Seed hospital-specific EDP officer accounts via deployment configuration / `002_SeedInitialUsers.sql`.
 - **UAT, SOP Enablement & Production Hypercare:**
-  - Conduct staging UAT with EDP Officers, System Analysts, and the Product Owner simulating real anomalies across all 4 scopes (including detector silence and failure recovery).
+  - Conduct staging UAT with EDP Officers, System Analysts, and the Product Owner simulating real anomalies across all 4 scopes (including detector handshake enrollment, silence, and failure recovery).
   - Publish concise EDP Remediation SOP quick-reference sheets mapped to each pilot detector's `ActionCategory` and verification queries.
   - Execute a 2-week production hypercare period to tune detector cadences, silence multipliers, escalation SLA thresholds, and false-positive rules, establishing baseline MTTA/MTTR metrics for period-close reviews.
 
 #### Business Rules & Use Cases Covered
-- **Business Rules:** `BR-PRIMA-007` (Non-Interfering Inspection Constraint verified under real SIMRS workloads) and live operational validation of `BR-PRIMA-001`–`010`.
-- **Use Cases:** Full hospital operational validation of `A-1` through `H-2`.
+- **Business Rules:** `BR-PRIMA-007` (Non-Interfering Inspection Constraint verified under real SIMRS workloads), `BR-PRIMA-010` (Cadence verification & silence supervision integrity), and live operational validation of `BR-PRIMA-001`–`010`.
+- **Use Cases:** Full hospital operational validation of `A-1` through `H-2` plus automated Handshake Enrollment.
 
 #### Exit Criteria
+- [ ] The Detector Enrollment & Handshake workflow is fully verified: generating an enrollment token in PrIMA UI, passing it to an unconfigured detector script, successfully completing handshake registration, and receiving verified telemetry without manual technical data entry in UI.
 - [ ] Read-only permissions, query timeouts, and lock-impact benchmarks are signed off (`BR-PRIMA-007`) for every pilot Detector prior to production activation.
 - [ ] All 4 monitoring scopes (`DataIntegrity`, `ProcessIntegrity`, `DataSync`, `Infrastructure`) report live telemetry to the hospital PrIMA instance on schedule.
 - [ ] Hospital EDP officers complete UAT scenarios and resolve or dismiss live pilot findings through `S-01`–`S-07` without ad-hoc database workarounds.
@@ -261,9 +275,9 @@ Build, safety-validate, and deploy the initial production Detector suite coverin
 | `M-01` | Dismiss Issue (Modal) | Stage 2 | Min 20-char rationale (`BR-PRIMA-006`) |
 | `M-02` | Record Remediation (Modal) | Stage 2 | Required before Verification Gate |
 | `M-03` | Manual Verification (Modal) | Stage 2 | Clean vs. Anomaly Still Present |
-| `S-03` | Detector List | Stage 3 | 15s polling, portfolio health summary |
+| `S-03` | Detector List | Stage 3 (Core) / Stage 5 (Enrollment Token Modal) | 15s polling, portfolio health summary, quick enrollment |
 | `S-04` | Detector Detail | Stage 3 | Admin status actions + `ConfirmDialog` retire |
-| `S-05` | Detector Form *(Register / Edit)* | Stage 3 | Immutable `Name` on edit, optional `WebhookUrl` |
+| `S-05` | Detector Form *(Register / Edit)* | Stage 3 (Core) / Stage 5 (Handshake pairing mode) | Immutable `Name` on edit, optional `WebhookUrl`, enrollment token flow |
 | `S-06` | Inspection Run Log | Stage 3 | 7-day default, expandable failures & findings |
 | `S-07` | History & Reports | Stage 4 | Read-only KPIs, CSS breakdown bars, history |
 
@@ -277,7 +291,7 @@ Build, safety-validate, and deploy the initial production Detector suite coverin
 | **C — Investigation & Evidence Review** | `C-1`, `C-2`, `C-3` | Stage 2 |
 | **D — Remediation & Verification** | `D-1`, `D-3`, `D-4` | Stage 2 |
 | **D — Remediation & Verification** | `D-2` (Automated Webhook Re-run) | Stage 3 |
-| **E — Detector Management** | `E-1`–`E-7` | Stage 3 |
+| **E — Detector Management** | `E-1`–`E-7`, Detector Handshake Enrollment | Stage 3 (`E-1`–`E-7`) / Stage 5 (Handshake protocol & runner SDK) |
 | **F — Inspection Run History** | `F-1`, `F-2` | Stage 3 |
 | **G — Notifications & Escalation Awareness** | `G-1`, `G-2` | Stage 3 |
 | **H — Historical Reporting & Trends** | `H-1`, `H-2` | Stage 4 |
@@ -313,6 +327,8 @@ The following cross-specification alignments must be addressed cleanly in their 
    No SIMRS detector may enter hospital production in **Stage 5** without dedicated read-only database credentials, explicit command timeouts, and load/lock verification confirming zero disruption to live hospital transactions.
 5. **Strict v1.0 Scope Discipline:**  
    Guard **Stages 1–4** against scope creep—avoid pagination on `S-01`/`S-03`/`S-06`, external charting libraries on `S-07`, multi-step resolution wizards on `S-02`, or premature v2 configuration UIs.
+6. **Detector Handshake Governance & Silence Boundary (`BR-PRIMA-008` & `BR-PRIMA-010`):**  
+   Self-describing detector handshakes eliminate manual configuration drift by declaring `expectedCadenceSeconds`, `targetModule`, and `webhookUrl` directly from the detector script. However, to preserve governance and prevent rogue or buggy scripts from disabling silence alarms, the `POST /api/detectors/handshake` endpoint enforces strict validation bounds (minimum 30 seconds, maximum 24 hours), requires a valid single-use enrollment token issued by an authenticated officer, and maintains name uniqueness (`BR-PRIMA-008`). Telemetry ingestion further monitors for cadence drift between the actual execution interval and the registered cadence.
 
 ---
 
