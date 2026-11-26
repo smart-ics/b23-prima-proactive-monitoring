@@ -40,30 +40,30 @@ function formatCategoryLabel(cat?: string): string {
 function getCategoryChipClass(cat?: string): string {
   switch (cat) {
     case 'DataCorrection':
-      return 'bg-blue-500/20 text-blue-300 border-blue-500/40';
+      return 'bg-blue-50 text-blue-700 border-blue-300';
     case 'ServiceRestart':
-      return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+      return 'bg-amber-50 text-amber-700 border-amber-300';
     case 'ConfigurationAdjustment':
-      return 'bg-purple-500/20 text-purple-300 border-purple-500/40';
+      return 'bg-purple-50 text-purple-700 border-purple-300';
     case 'CodeRemediationRequested':
-      return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40';
+      return 'bg-cyan-50 text-cyan-700 border-cyan-300';
     default:
-      return 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40';
+      return 'bg-indigo-50 text-indigo-700 border-indigo-300';
   }
 }
 </script>
 
 <template>
-  <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm text-slate-100 flex flex-col gap-4">
+  <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm text-slate-900 flex flex-col gap-4">
     <!-- Card Header -->
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2">
-        <Wrench class="w-5 h-5 text-indigo-400" />
-        <h3 class="font-semibold text-slate-100 text-sm tracking-wide uppercase">Remediation History</h3>
+        <Wrench class="w-5 h-5 text-indigo-600" />
+        <h3 class="font-semibold text-slate-900 text-sm tracking-wide uppercase">Remediation History</h3>
       </div>
       <span
         v-if="allRemediations.length > 0"
-        class="text-xs px-2 py-0.5 rounded font-mono font-medium bg-slate-800 text-slate-400 border border-slate-700/60"
+        class="text-xs px-2 py-0.5 rounded font-mono font-medium bg-slate-100 text-slate-700 border border-slate-300"
       >
         {{ allRemediations.length }} {{ allRemediations.length === 1 ? 'action' : 'actions' }}
       </span>
@@ -72,9 +72,9 @@ function getCategoryChipClass(cat?: string): string {
     <!-- Empty State -->
     <div
       v-if="allRemediations.length === 0"
-      class="py-6 text-center text-slate-500 border border-dashed border-slate-800 rounded-lg text-xs"
+      class="py-6 text-center text-slate-500 border border-dashed border-slate-300 rounded-lg text-xs"
     >
-      <Clock class="w-6 h-6 mx-auto mb-2 text-slate-600" />
+      <Clock class="w-6 h-6 mx-auto mb-2 text-slate-400" />
       No remediation actions recorded yet.
     </div>
 
@@ -86,8 +86,8 @@ function getCategoryChipClass(cat?: string): string {
         class="rounded-lg p-3.5 border transition-colors space-y-2.5"
         :class="[
           index === 0 && !r.isSuperseded
-            ? 'bg-slate-800/50 border-indigo-500/40'
-            : 'bg-slate-950/40 border-slate-800/80'
+            ? 'bg-indigo-50 border-indigo-300'
+            : 'bg-white border-slate-200'
         ]"
       >
         <div class="flex items-center justify-between flex-wrap gap-2">
@@ -103,14 +103,14 @@ function getCategoryChipClass(cat?: string): string {
             <!-- Latest / Superseded tag -->
             <span
               v-if="index === 0 && !r.isSuperseded"
-              class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+              class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-semibold bg-emerald-50 text-emerald-700 border border-emerald-300"
             >
-              <CheckCircle2 class="w-3 h-3 text-emerald-400" />
+              <CheckCircle2 class="w-3 h-3 text-emerald-600" />
               Active
             </span>
             <span
               v-else-if="r.isSuperseded"
-              class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-slate-800 text-slate-500 border border-slate-700/60"
+              class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-slate-100 text-slate-600 border border-slate-300"
               title="Superseded by later remediation or recurrence"
             >
               Superseded
@@ -119,22 +119,22 @@ function getCategoryChipClass(cat?: string): string {
 
           <!-- Timestamp -->
           <div
-            class="text-xs text-slate-400"
+            class="text-xs text-slate-500"
             :title="formatWibDateTime(r.timestampUtc, true)"
           >
             {{ formatRelativeTime(r.timestampUtc) }}
-            <span class="text-slate-600">({{ formatWibDateTime(r.timestampUtc, true) }})</span>
+            <span class="text-slate-400">({{ formatWibDateTime(r.timestampUtc, true) }})</span>
           </div>
         </div>
 
         <!-- Performed By -->
-        <div class="text-xs text-slate-300">
+        <div class="text-xs text-slate-700">
           <span class="text-slate-500">Performed by:</span>
-          <span class="font-medium text-slate-200 ml-1.5">{{ r.performedBy }}</span>
+          <span class="font-medium text-slate-900 ml-1.5">{{ r.performedBy }}</span>
         </div>
 
         <!-- Summary Description -->
-        <div class="text-xs text-slate-300 bg-slate-900/80 p-2.5 rounded-md border border-slate-800/80 whitespace-pre-wrap leading-relaxed font-sans">
+        <div class="text-xs text-slate-900 bg-slate-50 p-2.5 rounded-md border border-slate-200 whitespace-pre-wrap leading-relaxed font-sans">
           {{ r.summaryDescription }}
         </div>
       </div>

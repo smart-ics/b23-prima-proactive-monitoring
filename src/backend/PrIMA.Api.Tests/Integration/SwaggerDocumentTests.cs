@@ -36,7 +36,7 @@ public class SwaggerDocumentTests
         var paths = rootNode!["paths"]?.AsObject();
         paths.Should().NotBeNull();
 
-        // Verify Stage 2, Stage 3, and Stage 4 endpoints
+        // Verify Stage 2, Stage 3, Stage 4, and Stage 5 endpoints
         var expectedPaths = new[]
         {
             "/api/officers",
@@ -58,7 +58,10 @@ public class SwaggerDocumentTests
             "/api/detectors/{id}/toggle-status",
             "/api/detectors/{id}/trigger-run",
             "/api/history/reliability-kpi",
-            "/api/history/issues"
+            "/api/history/issues",
+            "/api/detectors/enrollment-tokens",
+            "/api/detectors/enrollment-tokens/{id}",
+            "/api/detectors/handshake"
         };
 
         foreach (var expectedPath in expectedPaths)
@@ -101,13 +104,37 @@ public class SwaggerDocumentTests
             "ReliabilityKpiResponse",
             "BreakdownItemDto",
             "HistoricalIssuesResponse",
-            "HistoricalIssueItemDto"
+            "HistoricalIssueItemDto",
+            "GenerateEnrollmentTokenRequest",
+            "GenerateEnrollmentTokenResponse",
+            "PendingEnrollmentTokenDto",
+            "DetectorHandshakeRequest",
+            "DetectorHandshakeResponse"
         };
 
         foreach (var expectedSchema in expectedSchemas)
         {
             schemas!.ContainsKey(expectedSchema).Should().BeTrue($"OpenAPI schema '{expectedSchema}' should be defined");
         }
+
+        // Verify Stage 5 schema property enhancements
+        var detectorDetailProperties = schemas!["DetectorDetailDto"]?["properties"]?.AsObject();
+        detectorDetailProperties.Should().NotBeNull();
+        detectorDetailProperties!.ContainsKey("apiKeyHash").Should().BeTrue();
+        detectorDetailProperties.ContainsKey("version").Should().BeTrue();
+        detectorDetailProperties.ContainsKey("lastActualIntervalSeconds").Should().BeTrue();
+        detectorDetailProperties.ContainsKey("cadenceDriftWarning").Should().BeTrue();
+
+        var detectorListItemProperties = schemas!["DetectorListItemDto"]?["properties"]?.AsObject();
+        detectorListItemProperties.Should().NotBeNull();
+        detectorListItemProperties!.ContainsKey("apiKeyHash").Should().BeTrue();
+        detectorListItemProperties.ContainsKey("version").Should().BeTrue();
+        detectorListItemProperties.ContainsKey("lastActualIntervalSeconds").Should().BeTrue();
+        detectorListItemProperties.ContainsKey("cadenceDriftWarning").Should().BeTrue();
+
+        var telemetryResponseProperties = schemas!["IngestTelemetryResponse"]?["properties"]?.AsObject();
+        telemetryResponseProperties.Should().NotBeNull();
+        telemetryResponseProperties!.ContainsKey("warnings").Should().BeTrue();
 
         // Dump swagger.json to PrIMA.Api for contract synchronization
         var repoRoot = FindRepoRoot();

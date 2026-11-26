@@ -57,70 +57,70 @@ function formatActivityTypeLabel(type: string): string {
 function getActivityTypeBadgeClass(type: string): string {
   switch (type) {
     case 'Created':
-      return 'bg-blue-500/20 text-blue-300 border-blue-500/40';
+      return 'bg-blue-50 text-blue-700 border-blue-300';
     case 'Acknowledged':
-      return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+      return 'bg-amber-50 text-amber-700 border-amber-300';
     case 'Assigned':
     case 'Reassigned':
-      return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40';
+      return 'bg-cyan-50 text-cyan-700 border-cyan-300';
     case 'InvestigationStarted':
-      return 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40';
+      return 'bg-indigo-50 text-indigo-700 border-indigo-300';
     case 'NoteAdded':
-      return 'bg-sky-500/20 text-sky-300 border-sky-500/40';
+      return 'bg-sky-50 text-sky-700 border-sky-300';
     case 'RemediationRecorded':
-      return 'bg-purple-500/20 text-purple-300 border-purple-500/40';
+      return 'bg-purple-50 text-purple-700 border-purple-300';
     case 'VerificationRecorded':
-      return 'bg-teal-500/20 text-teal-300 border-teal-500/40';
+      return 'bg-teal-50 text-teal-700 border-teal-300';
     case 'Resolved':
-      return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+      return 'bg-emerald-50 text-emerald-700 border-emerald-300';
     case 'Dismissed':
-      return 'bg-slate-700/60 text-slate-400 border-slate-600/50';
+      return 'bg-slate-100 text-slate-700 border-slate-300';
     case 'Reopened':
-      return 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+      return 'bg-rose-50 text-rose-700 border-rose-300';
     default:
-      return 'bg-slate-800 text-slate-300 border-slate-700';
+      return 'bg-slate-100 text-slate-700 border-slate-300';
   }
 }
 </script>
 
 <template>
-  <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm text-slate-100">
+  <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm text-slate-900">
     <!-- PrimeVue Accordion (collapsed by default via value=null) -->
     <Accordion :value="null" class="activity-accordion">
       <AccordionPanel value="activity-log-panel">
-        <AccordionHeader class="!bg-slate-900 !hover:bg-slate-800/60 !border-none !p-5 cursor-pointer">
+        <AccordionHeader class="!bg-white !hover:bg-slate-50 !border-none !p-5 cursor-pointer">
           <div class="flex items-center justify-between w-full pr-2">
             <div class="flex items-center gap-2">
-              <History class="w-5 h-5 text-indigo-400" />
-              <span class="font-semibold text-slate-100 text-sm tracking-wide uppercase">Activity Audit Trail</span>
+              <History class="w-5 h-5 text-indigo-600" />
+              <span class="font-semibold text-slate-900 text-sm tracking-wide uppercase">Activity Audit Trail</span>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-xs px-2 py-0.5 rounded font-mono font-medium bg-slate-800 text-slate-300 border border-slate-700/60">
+              <span class="text-xs px-2 py-0.5 rounded font-mono font-medium bg-slate-100 text-slate-700 border border-slate-300">
                 {{ allLogs.length }} {{ allLogs.length === 1 ? 'event' : 'events' }}
               </span>
             </div>
           </div>
         </AccordionHeader>
 
-        <AccordionContent class="!bg-slate-900 !border-t !border-slate-800 !p-5">
+        <AccordionContent class="!bg-white !border-t !border-slate-200 !p-5">
           <!-- Empty State -->
           <div
             v-if="allLogs.length === 0"
-            class="py-6 text-center text-slate-500 border border-dashed border-slate-800 rounded-lg text-xs"
+            class="py-6 text-center text-slate-500 border border-dashed border-slate-300 rounded-lg text-xs"
           >
-            <Clock class="w-6 h-6 mx-auto mb-2 text-slate-600" />
+            <Clock class="w-6 h-6 mx-auto mb-2 text-slate-400" />
             No activity log events recorded yet.
           </div>
 
           <!-- Chronological Audit Trail Timeline -->
-          <div v-else class="relative border-l border-slate-800 ml-3 space-y-4">
+          <div v-else class="relative border-l border-slate-200 ml-3 space-y-4">
             <div
               v-for="log in allLogs"
               :key="log.id"
               class="relative pl-6 space-y-1.5 group"
             >
               <!-- Timeline Dot -->
-              <div class="absolute -left-1.5 top-1.5 w-3 h-3 rounded-full bg-slate-800 border-2 border-indigo-400 group-hover:scale-110 transition-transform"></div>
+              <div class="absolute -left-1.5 top-1.5 w-3 h-3 rounded-full bg-white border-2 border-indigo-500 group-hover:scale-110 transition-transform"></div>
 
               <!-- Header with Badge & Timestamp -->
               <div class="flex items-center justify-between flex-wrap gap-2">
@@ -131,8 +131,8 @@ function getActivityTypeBadgeClass(type: string): string {
                   >
                     {{ formatActivityTypeLabel(log.activityType) }}
                   </span>
-                  <span class="text-xs font-medium text-slate-300 flex items-center gap-1">
-                    <User class="w-3 h-3 text-slate-500" />
+                  <span class="text-xs font-medium text-slate-700 flex items-center gap-1">
+                    <User class="w-3 h-3 text-slate-400" />
                     {{ log.actorName }}
                   </span>
                 </div>
@@ -146,14 +146,14 @@ function getActivityTypeBadgeClass(type: string): string {
               </div>
 
               <!-- Summary Text -->
-              <p class="text-xs text-slate-300 leading-relaxed font-sans">
+              <p class="text-xs text-slate-900 leading-relaxed font-sans">
                 {{ log.summary }}
               </p>
 
               <!-- Optional Details JSON snippet if present -->
               <div
                 v-if="log.detailsJson"
-                class="text-[11px] text-slate-400 font-mono bg-slate-950/60 p-2 rounded border border-slate-800/80 overflow-x-auto whitespace-pre-wrap"
+                class="text-[11px] text-slate-600 font-mono bg-slate-50 p-2 rounded border border-slate-200 overflow-x-auto whitespace-pre-wrap"
               >
                 {{ log.detailsJson }}
               </div>

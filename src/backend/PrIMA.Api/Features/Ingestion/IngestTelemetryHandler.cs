@@ -72,6 +72,38 @@ public sealed class IngestTelemetryHandler
             var triggerSource = Enum.Parse<TriggerSource>(request.TriggerSource, true);
             var outcome = Enum.Parse<InspectionOutcome>(request.Outcome, true);
 
+            var warnings = new List<string>();
+            int? actualIntervalSeconds = null;
+            string? cadenceDriftWarning = null;
+            var updateCadence = false;
+
+            var baselineLastRun = lockedDetector.LastRunAtUtc ?? detector.LastRunAtUtc;
+
+            if (triggerSource == TriggerSource.Scheduled)
+            {
+                updateCadence = true;
+                if (baselineLastRun.HasValue)
+                {
+                    var elapsedSeconds = (request.ExecutionTimestampUtc - baselineLastRun.Value).TotalSeconds;
+                    var actualIntervalInt = (int)Math.Round(elapsedSeconds);
+                    if (actualIntervalInt < 0) actualIntervalInt = 0;
+                    actualIntervalSeconds = actualIntervalInt;
+
+                    var expected = detector.ExpectedCadenceSeconds;
+                    if (elapsedSeconds < expected * 0.5 || elapsedSeconds > expected * 1.5)
+                    {
+                        var deviation = Math.Round(((elapsedSeconds - expected) / (double)expected) * 100, 1);
+                        var sign = deviation > 0 ? "+" : "";
+                        cadenceDriftWarning = $"Execution cadence drifted by {sign}{deviation}% (actual: {actualIntervalInt}s, expected: {expected}s)";
+                        warnings.Add(cadenceDriftWarning);
+                    }
+                    else
+                    {
+                        cadenceDriftWarning = null;
+                    }
+                }
+            }
+
             var inspectionRun = InspectionRun.Create(
                 detector.Id,
                 request.ExecutionTimestampUtc,
@@ -93,7 +125,10 @@ public sealed class IngestTelemetryHandler
                     lastHealthyUtc: null,
                     connection,
                     transaction,
-                    cancellationToken);
+                    lastActualIntervalSeconds: actualIntervalSeconds,
+                    cadenceDriftWarning: cadenceDriftWarning,
+                    updateCadence: updateCadence,
+                    cancellationToken: cancellationToken);
 
                 // Infrastructure anomaly correlation (BR-PRIMA-005):
                 var failCorrelationKey = $"FAIL:{detector.Id}";
@@ -253,7 +288,8 @@ public sealed class IngestTelemetryHandler
                     TotalFindingsProcessed = 0,
                     NewIssuesCreated = isNew ? 1 : 0,
                     RecurrencesRecorded = isNew ? 0 : 1,
-                    Results = failResults
+                    Results = failResults,
+                    Warnings = warnings
                 };
 
                 return Result<IngestTelemetryResponse>.Success(failResponse);
@@ -271,7 +307,10 @@ public sealed class IngestTelemetryHandler
                 lastHealthyUtc: request.ExecutionTimestampUtc,
                 connection,
                 transaction,
-                cancellationToken);
+                lastActualIntervalSeconds: actualIntervalSeconds,
+                cadenceDriftWarning: cadenceDriftWarning,
+                updateCadence: updateCadence,
+                cancellationToken: cancellationToken);
 
             if (wasFailingOrSilent)
             {
@@ -431,7 +470,8 @@ public sealed class IngestTelemetryHandler
                 TotalFindingsProcessed = results.Count,
                 NewIssuesCreated = results.Count(r => r.Action == "Created"),
                 RecurrencesRecorded = results.Count(r => r.Action is "Appended" or "Reopened"),
-                Results = results
+                Results = results,
+                Warnings = warnings
             };
 
             return Result<IngestTelemetryResponse>.Success(response);

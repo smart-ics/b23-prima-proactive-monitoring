@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Text;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -9,6 +10,11 @@ using PrIMA.Api.Domain.Detectors;
 using PrIMA.Api.Domain.Issues;
 using PrIMA.Api.Features.Auth;
 using PrIMA.Api.Features.Detectors;
+using PrIMA.Api.Features.Detectors.Enrollment;
+using PrIMA.Api.Features.Detectors.Enrollment.GenerateEnrollmentToken;
+using PrIMA.Api.Features.Detectors.Enrollment.GetPendingEnrollmentTokens;
+using PrIMA.Api.Features.Detectors.Enrollment.RevokeEnrollmentToken;
+using PrIMA.Api.Features.Detectors.Enrollment.DetectorHandshake;
 using PrIMA.Api.Features.Detectors.GetDetectorById;
 using PrIMA.Api.Features.Detectors.GetDetectorList;
 using PrIMA.Api.Features.Detectors.GetDetectorSummary;
@@ -172,6 +178,10 @@ builder.Services.AddScoped<UpdateDetectorHandler>();
 builder.Services.AddScoped<ToggleDetectorStatusHandler>();
 builder.Services.AddScoped<TriggerManualRunHandler>();
 builder.Services.AddScoped<TriggerVerificationRunHandler>();
+builder.Services.AddScoped<GenerateEnrollmentTokenHandler>();
+builder.Services.AddScoped<GetPendingEnrollmentTokensHandler>();
+builder.Services.AddScoped<RevokeEnrollmentTokenHandler>();
+builder.Services.AddScoped<DetectorHandshakeHandler>();
 builder.Services.AddScoped<GetReliabilityKpiHandler>();
 builder.Services.AddScoped<GetHistoricalIssuesHandler>();
 builder.Services.AddScoped<DevelopmentDemoDataSeeder>();
@@ -197,12 +207,14 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 // Base Health Check Endpoints
-app.MapGet("/health", () => Results.Ok(new { status = "Healthy", timestampUtc = DateTime.UtcNow }))
+app.MapGet("/health", (ISqlConnectionFactory sqlConnectionFactory, CancellationToken cancellationToken) =>
+    ExecuteHealthCheckAsync(sqlConnectionFactory, cancellationToken))
    .AllowAnonymous()
    .WithName("GetHealth")
    .WithTags("System");
 
-app.MapGet("/api/health", () => Results.Ok(new { status = "Healthy", timestampUtc = DateTime.UtcNow }))
+app.MapGet("/api/health", (ISqlConnectionFactory sqlConnectionFactory, CancellationToken cancellationToken) =>
+    ExecuteHealthCheckAsync(sqlConnectionFactory, cancellationToken))
    .AllowAnonymous()
    .WithName("GetApiHealth")
    .WithTags("System");
@@ -214,6 +226,7 @@ app.MapGetDashboardFeedEndpoint();
 app.MapOfficerEndpoints();
 app.MapIssueLifecycleEndpoints();
 app.MapDetectorEndpoints();
+app.MapEnrollmentEndpoints();
 app.MapHistoryEndpoints();
 
 // Execute Database Migrations
@@ -231,6 +244,46 @@ if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("SeedDem
 }
 
 app.Run();
+
+static async Task<IResult> ExecuteHealthCheckAsync(ISqlConnectionFactory sqlConnectionFactory, CancellationToken cancellationToken)
+{
+    try
+    {
+        using var connection = sqlConnectionFactory.CreateConnection();
+        if (connection is DbConnection dbConn)
+        {
+            await dbConn.OpenAsync(cancellationToken);
+            using var cmd = dbConn.CreateCommand();
+            cmd.CommandText = "SELECT 1";
+            await cmd.ExecuteScalarAsync(cancellationToken);
+        }
+        else
+        {
+            connection.Open();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT 1";
+            cmd.ExecuteScalar();
+        }
+
+        return Results.Ok(new
+        {
+            status = "Healthy",
+            database = "Connected",
+            timestampUtc = DateTime.UtcNow
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(
+            new
+            {
+                status = "Unhealthy",
+                database = "Disconnected",
+                error = ex.Message
+            },
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+}
 
 public partial class Program { }
 

@@ -14,7 +14,11 @@ public sealed class GetDetectorListHandler
             d.WebhookUrl, d.AdminStatus, d.HealthStatus, d.LastRunAtUtc, d.LastHealthyHeartbeatUtc,
             ISNULL(r.PassRate30d, 100.0) AS PassRate30d,
             ISNULL(r.TotalRuns30d, 0) AS TotalRuns30d,
-            ISNULL(i.ActiveIssuesCount, 0) AS ActiveIssuesCount
+            ISNULL(i.ActiveIssuesCount, 0) AS ActiveIssuesCount,
+            d.ApiKeyHash,
+            d.Version,
+            d.LastActualIntervalSeconds,
+            d.CadenceDriftWarning
         FROM dbo.Detectors d
         LEFT JOIN (
             SELECT 

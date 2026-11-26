@@ -15,4 +15,8 @@ public sealed record DetectorDetailDto(
     DateTime CreatedAtUtc,
     DetectorReliabilityStatsDto ReliabilityStats,
     IReadOnlyList<RecentRunSummaryDto> RecentRuns,
-    IReadOnlyList<LinkedActiveIssueDto> ActiveIssues);
+    IReadOnlyList<LinkedActiveIssueDto> ActiveIssues,
+    string? ApiKeyHash = null,
+    string? Version = null,
+    int? LastActualIntervalSeconds = null,
+    string? CadenceDriftWarning = null);

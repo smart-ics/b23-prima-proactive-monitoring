@@ -1,20 +1,86 @@
 import { z } from 'zod';
 
+/**
+ * Canonical MonitoringScope enum values per BR-PRIMA-007 and DEC-004.
+ */
+export const CANONICAL_DETECTOR_SCOPES = [
+  'DataIntegrity',
+  'ProcessIntegrity',
+  'DataSync',
+  'Infrastructure',
+] as const;
+
+export type CanonicalDetectorScope = (typeof CANONICAL_DETECTOR_SCOPES)[number];
+
+/**
+ * All allowed scopes for validation, including legacy scopes for backward compatibility with existing records.
+ */
 export const DETECTOR_SCOPES = [
+  'DataIntegrity',
+  'ProcessIntegrity',
+  'DataSync',
+  'Infrastructure',
+  // Backward compatibility legacy values
   'DataQuality',
   'BusinessLogic',
-  'Infrastructure',
   'ProcessFlow',
 ] as const;
+
+export type DetectorScope = (typeof DETECTOR_SCOPES)[number];
+
+/**
+ * Canonical options map for scope selection dropdowns (S-05).
+ */
+export interface ScopeOption {
+  label: string;
+  value: DetectorScope;
+  description: string;
+}
+
+export const DETECTOR_SCOPE_OPTIONS: readonly ScopeOption[] = [
+  {
+    label: 'Data Integrity (Ledger & Master Data)',
+    value: 'DataIntegrity',
+    description: 'Financial ledger balance, tariff integrity, duplicate AR, master data correctness.',
+  },
+  {
+    label: 'Process Integrity (Billing & Workflow Pipeline)',
+    value: 'ProcessIntegrity',
+    description: 'Auto-journaling, patient bill settlement, workflow progression pipelines.',
+  },
+  {
+    label: 'Data Synchronization (EMR, HFIS, BPJS)',
+    value: 'DataSync',
+    description: 'EMR sync logs, BPJS HFIS doctor schedules, external service bridging.',
+  },
+  {
+    label: 'Infrastructure & Platform (Print, DB, Services)',
+    value: 'Infrastructure',
+    description: 'Print spooler queues, database connectivity, background worker heartbeat.',
+  },
+] as const;
+
+/**
+ * Formatted dictionary mapping each scope to its human-readable label.
+ */
+export const DETECTOR_SCOPE_LABELS: Record<string, string> = {
+  DataIntegrity: 'Data Integrity (Ledger & Master Data)',
+  ProcessIntegrity: 'Process Integrity (Billing & Workflow Pipeline)',
+  DataSync: 'Data Synchronization (EMR, HFIS, BPJS)',
+  Infrastructure: 'Infrastructure & Platform (Print, DB, Services)',
+  // Legacy mappings for backward compatibility
+  DataQuality: 'Data Integrity (Legacy: Data Quality)',
+  BusinessLogic: 'Process Integrity (Legacy: Business Logic)',
+  ProcessFlow: 'Process Integrity (Legacy: Process Flow)',
+};
 
 export const CADENCE_UNITS = ['Minutes', 'Hours'] as const;
 
 export type CadenceUnit = (typeof CADENCE_UNITS)[number];
-export type DetectorScope = (typeof DETECTOR_SCOPES)[number];
 
 /**
  * Zod validation schema for Detector Registration & Edit forms (S-05).
- * Validates name, description, scope, target module, split cadence, and optional webhook URL.
+ * Validates name, description, canonical scope, target module, split cadence, and optional webhook URL.
  */
 export const detectorFormSchema = z.object({
   name: z
@@ -35,7 +101,8 @@ export const detectorFormSchema = z.object({
 
   scope: z.enum(DETECTOR_SCOPES, {
     required_error: 'Monitoring scope is required',
-    invalid_type_error: 'Monitoring scope must be one of: DataQuality, BusinessLogic, Infrastructure, ProcessFlow',
+    invalid_type_error:
+      'Monitoring scope must be one of: DataIntegrity, ProcessIntegrity, DataSync, Infrastructure',
   }),
 
   targetModule: z
@@ -87,3 +154,4 @@ export const detectorEditFormSchema = detectorFormSchema.extend({
 });
 
 export type DetectorEditFormValues = z.infer<typeof detectorEditFormSchema>;
+

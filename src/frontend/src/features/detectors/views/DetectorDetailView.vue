@@ -18,6 +18,8 @@ import {
   Copy,
   Check,
   Server,
+  AlertTriangle,
+  Cpu,
 } from 'lucide-vue-next';
 
 import {
@@ -288,6 +290,26 @@ function getAdminBadgeClass(admin: string): string {
                   {{ detector.targetModule }}
                 </span>
 
+                <!-- Version Pill (if present) -->
+                <span
+                  v-if="detector.version"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-medium bg-indigo-50 text-indigo-700 border border-indigo-200"
+                  :title="`Detector Runtime Version: ${detector.version}`"
+                >
+                  <Cpu class="w-3 h-3 text-indigo-500" />
+                  v{{ detector.version }}
+                </span>
+
+                <!-- Cadence Drift Badge (if present) -->
+                <span
+                  v-if="detector.cadenceDriftWarning"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-300"
+                  :title="detector.cadenceDriftWarning"
+                >
+                  <AlertTriangle class="w-3 h-3 text-amber-600" />
+                  Cadence Drift
+                </span>
+
                 <!-- Health Badge -->
                 <span
                   class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border"
@@ -472,6 +494,31 @@ function getAdminBadgeClass(admin: string): string {
 
       <!-- Main Body Container -->
       <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        <!-- Cadence Drift Advisory Banner (§DEC-003, BR-PRIMA-010) -->
+        <div
+          v-if="detector.cadenceDriftWarning"
+          class="bg-amber-50 border border-amber-300 rounded-xl p-4 flex items-start gap-3 text-amber-900 shadow-2xs"
+        >
+          <AlertTriangle class="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div class="text-xs min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-bold uppercase tracking-wider text-amber-950">Cadence Drift Warning</span>
+              <span
+                v-if="detector.lastActualIntervalSeconds"
+                class="font-mono text-amber-900 text-[11px] bg-amber-100/90 px-2 py-0.5 rounded border border-amber-300"
+              >
+                Actual: {{ detector.lastActualIntervalSeconds }}s vs Expected: {{ detector.expectedCadenceSeconds }}s
+              </span>
+            </div>
+            <p class="text-xs text-amber-900 mt-1 leading-relaxed">
+              {{ detector.cadenceDriftWarning }}
+            </p>
+            <p class="text-[11px] text-amber-800 mt-1">
+              Scheduled execution interval deviated by &gt; ±50%. Telemetry ingestion continues normally; check detector host timer/scheduler if persistent.
+            </p>
+          </div>
+        </div>
+
         <!-- Decommissioned Banner if Retired -->
         <div
           v-if="adminStatus === 'Retired'"
@@ -515,7 +562,7 @@ function getAdminBadgeClass(admin: string): string {
           </div>
 
           <!-- Configuration Grid -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
             <!-- Scope -->
             <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
               <span class="text-xs text-slate-500 block">Monitoring Scope</span>
@@ -528,14 +575,53 @@ function getAdminBadgeClass(admin: string): string {
               <span class="text-sm font-semibold text-slate-900 mt-0.5 block">{{ detector.targetModule }}</span>
             </div>
 
-            <!-- Cadence & Silence Threshold -->
+            <!-- Runtime Version (§DEC-001, DEC-004) -->
+            <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <span class="text-xs text-slate-500 block">Detector Version</span>
+              <span class="text-sm font-semibold text-slate-900 mt-0.5 block font-mono">
+                {{ detector.version ? `v${detector.version}` : 'Manual / Legacy' }}
+              </span>
+            </div>
+
+            <!-- Expected Cadence & Threshold -->
             <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
               <span class="text-xs text-slate-500 block">Expected Cadence & Threshold</span>
               <span class="text-sm font-semibold text-slate-900 mt-0.5 block">
                 {{ cadenceInfo.summary }}
               </span>
               <span class="text-[11px] text-slate-500 block">
-                {{ cadenceInfo.threshold }} (2x)
+                {{ cadenceInfo.threshold }} (2x silence threshold)
+              </span>
+            </div>
+
+            <!-- Last Actual Interval & Drift Status (§DEC-003, BR-PRIMA-010) -->
+            <div
+              class="p-3 rounded-lg border transition-colors"
+              :class="detector.cadenceDriftWarning ? 'bg-amber-50/70 border-amber-300' : 'bg-slate-50 border-slate-200'"
+            >
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-slate-500 block">Last Actual Interval</span>
+                <span
+                  v-if="detector.cadenceDriftWarning"
+                  class="text-[10px] font-semibold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-300"
+                >
+                  Drifted (&gt;±50%)
+                </span>
+                <span
+                  v-else-if="detector.lastActualIntervalSeconds != null"
+                  class="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-300"
+                >
+                  Within Target
+                </span>
+              </div>
+              <span
+                class="text-sm font-semibold mt-0.5 block font-mono"
+                :class="detector.cadenceDriftWarning ? 'text-amber-950 font-bold' : 'text-slate-900'"
+              >
+                {{ detector.lastActualIntervalSeconds != null ? `${detector.lastActualIntervalSeconds}s` : 'Pending telemetry' }}
+              </span>
+              <span class="text-[11px] block text-slate-500">
+                Target: {{ detector.expectedCadenceSeconds }}s (tolerance ±50%)
               </span>
             </div>
 

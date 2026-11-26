@@ -74,28 +74,28 @@ function handleReassign() {
 </script>
 
 <template>
-  <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm text-slate-100 flex flex-col gap-4">
+  <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm text-slate-900 flex flex-col gap-4">
     <!-- Card Header -->
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2">
-        <User class="w-5 h-5 text-indigo-400" />
-        <h3 class="font-semibold text-slate-100 text-sm tracking-wide uppercase">Ownership & Timeline</h3>
+        <User class="w-5 h-5 text-indigo-600" />
+        <h3 class="font-semibold text-slate-900 text-sm tracking-wide uppercase">Ownership & Timeline</h3>
       </div>
     </div>
 
     <!-- Current Assignee Section -->
-    <div class="bg-slate-800/60 border border-slate-700/60 rounded-lg p-3.5 space-y-2">
+    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3.5 space-y-2">
       <div class="flex items-center justify-between">
-        <span class="text-xs text-slate-400 font-medium">Assigned Officer</span>
+        <span class="text-xs text-slate-500 font-medium">Assigned Officer</span>
         <!-- Reassign / Assign Button for Active Issues -->
         <button
           v-if="isActive"
           type="button"
-          class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md bg-indigo-600/30 text-indigo-300 hover:bg-indigo-600/50 border border-indigo-500/40 transition-colors cursor-pointer"
+          class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-300 transition-colors cursor-pointer"
           @click="handleReassign"
         >
-          <UserCheck v-if="currentAssignee" class="w-3.5 h-3.5 text-indigo-300" />
-          <UserPlus v-else class="w-3.5 h-3.5 text-indigo-300" />
+          <UserCheck v-if="currentAssignee" class="w-3.5 h-3.5 text-indigo-600" />
+          <UserPlus v-else class="w-3.5 h-3.5 text-indigo-600" />
           {{ currentAssignee ? 'Reassign' : 'Assign Officer' }}
         </button>
       </div>
@@ -104,17 +104,17 @@ function handleReassign() {
         <div class="w-8 h-8 rounded-full flex items-center justify-center font-semibold text-xs border"
           :class="[
             currentAssignee
-              ? 'bg-indigo-900/60 text-indigo-300 border-indigo-700/60'
-              : 'bg-slate-800 text-slate-500 border-slate-700/60'
+              ? 'bg-indigo-50 text-indigo-700 border-indigo-300'
+              : 'bg-slate-100 text-slate-500 border-slate-300'
           ]"
         >
           <User class="w-4 h-4" />
         </div>
         <div>
-          <div class="text-sm font-medium" :class="currentAssignee ? 'text-slate-100' : 'text-slate-500 italic'">
+          <div class="text-sm font-medium" :class="currentAssignee ? 'text-slate-900' : 'text-slate-500 italic'">
             {{ currentAssignee || 'Unassigned' }}
           </div>
-          <div class="text-[11px] text-slate-400">
+          <div class="text-[11px] text-slate-500">
             {{ currentAssignee ? 'Lead operational handler' : 'Awaiting officer triage' }}
           </div>
         </div>
@@ -124,26 +124,26 @@ function handleReassign() {
     <!-- Timestamps Breakdown -->
     <div class="space-y-2.5 text-xs">
       <!-- Created At -->
-      <div class="flex items-center justify-between py-1.5 border-b border-slate-800/80">
-        <div class="flex items-center gap-2 text-slate-400">
-          <Calendar class="w-3.5 h-3.5 text-slate-500" />
+      <div class="flex items-center justify-between py-1.5 border-b border-slate-200">
+        <div class="flex items-center gap-2 text-slate-500">
+          <Calendar class="w-3.5 h-3.5 text-slate-400" />
           <span>Created</span>
         </div>
         <div class="text-right" :title="formatWibDateTime(createdAt, true)">
-          <div class="text-slate-200 font-medium">{{ formatRelativeTime(createdAt) }}</div>
+          <div class="text-slate-900 font-medium">{{ formatRelativeTime(createdAt) }}</div>
           <div class="text-[11px] text-slate-500">{{ formatWibDateTime(createdAt, false) }} WIB</div>
         </div>
       </div>
 
       <!-- Acknowledged At -->
-      <div class="flex items-center justify-between py-1.5 border-b border-slate-800/80">
-        <div class="flex items-center gap-2 text-slate-400">
-          <Clock class="w-3.5 h-3.5 text-slate-500" />
+      <div class="flex items-center justify-between py-1.5 border-b border-slate-200">
+        <div class="flex items-center gap-2 text-slate-500">
+          <Clock class="w-3.5 h-3.5 text-slate-400" />
           <span>Acknowledged</span>
         </div>
         <div class="text-right">
           <template v-if="acknowledgedAt">
-            <div class="text-slate-200 font-medium" :title="formatWibDateTime(acknowledgedAt, true)">
+            <div class="text-slate-900 font-medium" :title="formatWibDateTime(acknowledgedAt, true)">
               {{ formatRelativeTime(acknowledgedAt) }}
             </div>
             <div class="text-[11px] text-slate-500">{{ formatWibDateTime(acknowledgedAt, false) }} WIB</div>
@@ -153,50 +153,50 @@ function handleReassign() {
       </div>
 
       <!-- Last Seen / Occurred At -->
-      <div class="flex items-center justify-between py-1.5 border-b border-slate-800/80">
-        <div class="flex items-center gap-2 text-slate-400">
-          <Clock class="w-3.5 h-3.5 text-slate-500" />
+      <div class="flex items-center justify-between py-1.5 border-b border-slate-200">
+        <div class="flex items-center gap-2 text-slate-500">
+          <Clock class="w-3.5 h-3.5 text-slate-400" />
           <span>Last Recurred</span>
         </div>
         <div class="text-right" :title="formatWibDateTime(lastSeenAt, true)">
-          <div class="text-slate-200 font-medium">{{ formatRelativeTime(lastSeenAt) }}</div>
+          <div class="text-slate-900 font-medium">{{ formatRelativeTime(lastSeenAt) }}</div>
           <div class="text-[11px] text-slate-500">{{ formatWibDateTime(lastSeenAt, false) }} WIB</div>
         </div>
       </div>
 
       <!-- Reopened At (if applicable) -->
-      <div v-if="reopenedAt" class="flex items-center justify-between py-1.5 border-b border-slate-800/80">
-        <div class="flex items-center gap-2 text-purple-400">
-          <RotateCcw class="w-3.5 h-3.5 text-purple-400" />
+      <div v-if="reopenedAt" class="flex items-center justify-between py-1.5 border-b border-slate-200">
+        <div class="flex items-center gap-2 text-purple-600">
+          <RotateCcw class="w-3.5 h-3.5 text-purple-600" />
           <span>Reopened</span>
         </div>
         <div class="text-right" :title="formatWibDateTime(reopenedAt, true)">
-          <div class="text-purple-300 font-medium">{{ formatRelativeTime(reopenedAt) }}</div>
-          <div class="text-[11px] text-purple-400/70">{{ formatWibDateTime(reopenedAt, false) }} WIB</div>
+          <div class="text-purple-700 font-medium">{{ formatRelativeTime(reopenedAt) }}</div>
+          <div class="text-[11px] text-purple-500">{{ formatWibDateTime(reopenedAt, false) }} WIB</div>
         </div>
       </div>
 
       <!-- Resolved At (if applicable) -->
-      <div v-if="resolvedAt" class="flex items-center justify-between py-1.5 border-b border-slate-800/80">
-        <div class="flex items-center gap-2 text-emerald-400">
-          <CheckCircle2 class="w-3.5 h-3.5 text-emerald-400" />
+      <div v-if="resolvedAt" class="flex items-center justify-between py-1.5 border-b border-slate-200">
+        <div class="flex items-center gap-2 text-emerald-600">
+          <CheckCircle2 class="w-3.5 h-3.5 text-emerald-600" />
           <span>Resolved</span>
         </div>
         <div class="text-right" :title="formatWibDateTime(resolvedAt, true)">
-          <div class="text-emerald-300 font-medium">{{ formatRelativeTime(resolvedAt) }}</div>
-          <div class="text-[11px] text-emerald-400/70">{{ formatWibDateTime(resolvedAt, false) }} WIB</div>
+          <div class="text-emerald-700 font-medium">{{ formatRelativeTime(resolvedAt) }}</div>
+          <div class="text-[11px] text-emerald-500">{{ formatWibDateTime(resolvedAt, false) }} WIB</div>
         </div>
       </div>
 
       <!-- Dismissed At (if applicable) -->
-      <div v-if="dismissedAt" class="flex items-center justify-between py-1.5 border-b border-slate-800/80">
-        <div class="flex items-center gap-2 text-rose-400">
-          <Ban class="w-3.5 h-3.5 text-rose-400" />
+      <div v-if="dismissedAt" class="flex items-center justify-between py-1.5 border-b border-slate-200">
+        <div class="flex items-center gap-2 text-rose-600">
+          <Ban class="w-3.5 h-3.5 text-rose-600" />
           <span>Dismissed</span>
         </div>
         <div class="text-right" :title="formatWibDateTime(dismissedAt, true)">
-          <div class="text-rose-300 font-medium">{{ formatRelativeTime(dismissedAt) }}</div>
-          <div class="text-[11px] text-rose-400/70">{{ formatWibDateTime(dismissedAt, false) }} WIB</div>
+          <div class="text-rose-700 font-medium">{{ formatRelativeTime(dismissedAt) }}</div>
+          <div class="text-[11px] text-rose-500">{{ formatWibDateTime(dismissedAt, false) }} WIB</div>
         </div>
       </div>
     </div>

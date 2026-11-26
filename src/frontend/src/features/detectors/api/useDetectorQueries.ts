@@ -286,3 +286,12 @@ export function useTriggerManualRunMutation(id?: MaybeRef<string>) {
     },
   });
 }
+
+// Re-export enrollment token queries and keys
+export {
+  enrollmentTokenKeys,
+  usePendingEnrollmentTokensQuery,
+  useGenerateEnrollmentTokenMutation,
+  useRevokeEnrollmentTokenMutation,
+} from './useEnrollmentQueries';
+

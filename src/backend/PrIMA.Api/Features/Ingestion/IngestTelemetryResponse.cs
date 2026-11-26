@@ -10,6 +10,7 @@ public record IngestTelemetryResponse
     public int NewIssuesCreated { get; init; }
     public int RecurrencesRecorded { get; init; }
     public IReadOnlyList<FindingResultItem> Results { get; init; } = Array.Empty<FindingResultItem>();
+    public IReadOnlyList<string> Warnings { get; init; } = Array.Empty<string>();
 }
 
 public sealed record FindingResultItem

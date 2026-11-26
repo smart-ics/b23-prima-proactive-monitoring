@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { AlertTriangle } from 'lucide-vue-next';
 import type { DetectorListItemDto } from '@/shared/types/api.generated';
 import { formatWibDateTime, formatRelativeTime } from '@/shared/utils/dateUtils';
 import {
@@ -68,9 +69,19 @@ function handleClick() {
       <!-- Cadence -->
       <div>
         <span class="text-[11px] text-slate-400 block">Cadence</span>
-        <span class="font-mono font-medium text-slate-700">
-          {{ formatCadence(detector.expectedCadenceSeconds) }}
-        </span>
+        <div class="flex items-center gap-1.5 flex-wrap mt-0.5">
+          <span class="font-mono font-medium text-slate-700">
+            {{ formatCadence(detector.expectedCadenceSeconds) }}
+          </span>
+          <span
+            v-if="detector.cadenceDriftWarning"
+            v-tooltip.top="detector.cadenceDriftWarning"
+            class="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs cursor-help"
+          >
+            <AlertTriangle class="w-2.5 h-2.5 text-amber-600 shrink-0" />
+            <span>Drift</span>
+          </span>
+        </div>
       </div>
 
       <!-- Last Heartbeat -->

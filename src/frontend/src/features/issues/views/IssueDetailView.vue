@@ -273,27 +273,27 @@ function handleFocusNoteComposer() {
     <!-- Cold Load Skeleton State -->
     <div v-if="isPending" class="space-y-6 animate-pulse">
       <!-- Header Skeleton -->
-      <div class="h-28 bg-slate-900 border border-slate-800 rounded-lg p-6 flex flex-col justify-between">
+      <div class="h-28 bg-white border border-slate-200 rounded-lg p-6 flex flex-col justify-between">
         <div class="flex items-center gap-3">
-          <div class="w-8 h-8 bg-slate-800 rounded-lg"></div>
-          <div class="w-20 h-5 bg-slate-800 rounded"></div>
-          <div class="w-24 h-5 bg-slate-800 rounded"></div>
-          <div class="w-48 h-5 bg-slate-800 rounded"></div>
+          <div class="w-8 h-8 bg-slate-200 rounded-lg"></div>
+          <div class="w-20 h-5 bg-slate-200 rounded"></div>
+          <div class="w-24 h-5 bg-slate-200 rounded"></div>
+          <div class="w-48 h-5 bg-slate-200 rounded"></div>
         </div>
-        <div class="w-1/2 h-6 bg-slate-800 rounded mt-3"></div>
+        <div class="w-1/2 h-6 bg-slate-200 rounded mt-3"></div>
       </div>
 
       <!-- 2-Column Grid Skeleton -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <div class="lg:col-span-8 space-y-6">
-          <div class="h-64 bg-slate-900 border border-slate-800 rounded-lg p-6"></div>
-          <div class="h-48 bg-slate-900 border border-slate-800 rounded-lg p-6"></div>
-          <div class="h-48 bg-slate-900 border border-slate-800 rounded-lg p-6"></div>
+          <div class="h-64 bg-white border border-slate-200 rounded-lg p-6"></div>
+          <div class="h-48 bg-white border border-slate-200 rounded-lg p-6"></div>
+          <div class="h-48 bg-white border border-slate-200 rounded-lg p-6"></div>
         </div>
         <div class="lg:col-span-4 space-y-6">
-          <div class="h-56 bg-slate-900 border border-slate-800 rounded-lg p-6"></div>
-          <div class="h-48 bg-slate-900 border border-slate-800 rounded-lg p-6"></div>
-          <div class="h-40 bg-slate-900 border border-slate-800 rounded-lg p-6"></div>
+          <div class="h-56 bg-white border border-slate-200 rounded-lg p-6"></div>
+          <div class="h-48 bg-white border border-slate-200 rounded-lg p-6"></div>
+          <div class="h-40 bg-white border border-slate-200 rounded-lg p-6"></div>
         </div>
       </div>
     </div>
@@ -301,14 +301,14 @@ function handleFocusNoteComposer() {
     <!-- Error Fallback State -->
     <div
       v-else-if="isError || !issueDetail"
-      class="p-12 text-center flex flex-col items-center justify-center space-y-4 bg-slate-900 border border-slate-800 rounded-lg shadow-sm"
+      class="p-12 text-center flex flex-col items-center justify-center space-y-4 bg-white border border-slate-200 rounded-lg shadow-sm"
     >
-      <div class="w-14 h-14 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center text-2xl">
+      <div class="w-14 h-14 rounded-full bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center text-2xl">
         <AlertTriangle class="w-7 h-7" />
       </div>
       <div>
-        <h2 class="text-lg font-semibold text-white">Issue Not Found or Failed to Load</h2>
-        <p class="text-xs text-slate-400 mt-1 max-w-md">
+        <h2 class="text-lg font-semibold text-slate-900">Issue Not Found or Failed to Load</h2>
+        <p class="text-xs text-slate-500 mt-1 max-w-md">
           {{ error?.message || 'Unable to retrieve details for this issue. It may have been purged or the connection timed out.' }}
         </p>
       </div>
@@ -324,7 +324,7 @@ function handleFocusNoteComposer() {
         <button
           type="button"
           @click="navigateBack"
-          class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors cursor-pointer"
+          class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 transition-colors cursor-pointer"
         >
           <template v-if="isFromHistory">
             <span>← Back to History</span>
@@ -343,7 +343,7 @@ function handleFocusNoteComposer() {
       <div class="lg:col-span-8 space-y-6">
         <!-- Workbench Header (Sticky with Context-Sensitive Action Bar) -->
         <WorkbenchHeader
-          class="rounded-lg border border-slate-800 shadow-md"
+          class="rounded-lg border border-slate-200 shadow-sm"
           :issue-detail="issueDetail"
           :is-action-loading="isActionLoading"
           :has-webhook="hasWebhook"

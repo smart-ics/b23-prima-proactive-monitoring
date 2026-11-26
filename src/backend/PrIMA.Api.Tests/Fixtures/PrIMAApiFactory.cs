@@ -70,6 +70,7 @@ public class PrIMAApiFactory : WebApplicationFactory<Program>
             DELETE FROM dbo.DismissalRecords WITH (TABLOCKX);
             DELETE FROM dbo.Issues WITH (TABLOCKX);
             DELETE FROM dbo.InspectionRuns WITH (TABLOCKX);
+            DELETE FROM dbo.DetectorEnrollmentTokens WITH (TABLOCKX);
             DELETE FROM dbo.Detectors WITH (TABLOCKX);
             DELETE FROM dbo.Officers WHERE Username NOT IN ('ahmad.budi', 'siti.rahma', 'edp.lead');
             UPDATE dbo.Officers SET IsActive = 1 WHERE Username IN ('ahmad.budi', 'siti.rahma', 'edp.lead');
@@ -105,16 +106,21 @@ public class PrIMAApiFactory : WebApplicationFactory<Program>
         string scope = "DataIntegrity",
         string targetModule = "Billing",
         string adminStatus = "Active",
-        string healthStatus = "Healthy")
+        string healthStatus = "Healthy",
+        string? apiKeyHash = null,
+        int expectedCadenceSeconds = 300,
+        DateTime? lastRunAtUtc = null)
     {
         var id = Guid.NewGuid();
         const string sql = """
             INSERT INTO dbo.Detectors (
                 Id, Name, Description, Scope, TargetModule, ExpectedCadenceSeconds,
-                WebhookUrl, AdminStatus, HealthStatus, LastRunAtUtc, LastHealthyHeartbeatUtc, CreatedAtUtc
+                WebhookUrl, AdminStatus, HealthStatus, LastRunAtUtc, LastHealthyHeartbeatUtc, CreatedAtUtc,
+                ApiKeyHash
             ) VALUES (
-                @Id, @Name, 'Test detector description', @Scope, @TargetModule, 300,
-                NULL, @AdminStatus, @HealthStatus, SYSUTCDATETIME(), SYSUTCDATETIME(), SYSUTCDATETIME()
+                @Id, @Name, 'Test detector description', @Scope, @TargetModule, @ExpectedCadenceSeconds,
+                NULL, @AdminStatus, @HealthStatus, @LastRunAtUtc, SYSUTCDATETIME(), SYSUTCDATETIME(),
+                @ApiKeyHash
             );
             """;
 
@@ -125,7 +131,10 @@ public class PrIMAApiFactory : WebApplicationFactory<Program>
             Scope = scope,
             TargetModule = targetModule,
             AdminStatus = adminStatus,
-            HealthStatus = healthStatus
+            HealthStatus = healthStatus,
+            ExpectedCadenceSeconds = expectedCadenceSeconds,
+            LastRunAtUtc = lastRunAtUtc ?? DateTime.UtcNow,
+            ApiKeyHash = apiKeyHash
         });
 
         return id;

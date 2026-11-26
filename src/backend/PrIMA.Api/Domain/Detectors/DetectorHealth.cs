@@ -4,5 +4,6 @@ public enum DetectorHealth
 {
     Healthy,
     Silent,
-    Failing
+    Failing,
+    Unknown
 }

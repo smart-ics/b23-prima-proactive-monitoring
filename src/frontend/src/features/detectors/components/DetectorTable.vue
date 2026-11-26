@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import DataTable, { type DataTableRowClickEvent } from 'primevue/datatable';
 import Column from 'primevue/column';
+import { AlertTriangle } from 'lucide-vue-next';
 import type { DetectorListItemDto } from '@/shared/types/api.generated';
 import { formatWibDateTime, formatRelativeTime } from '@/shared/utils/dateUtils';
 import {
@@ -86,10 +87,20 @@ function handleViewClick(id: string) {
       </Column>
 
       <!-- Column 3: Cadence -->
-      <Column header="Cadence" style="width: 120px; min-width: 110px">
+      <Column header="Cadence" style="width: 140px; min-width: 130px">
         <template #body="{ data }">
-          <div class="font-mono text-xs text-slate-700 font-medium whitespace-nowrap">
-            {{ formatCadence(data.expectedCadenceSeconds) }}
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="font-mono text-xs text-slate-700 font-medium whitespace-nowrap">
+              {{ formatCadence(data.expectedCadenceSeconds) }}
+            </span>
+            <span
+              v-if="data.cadenceDriftWarning"
+              v-tooltip.top="data.cadenceDriftWarning"
+              class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs cursor-help"
+            >
+              <AlertTriangle class="w-2.5 h-2.5 text-amber-600 shrink-0" />
+              <span>Drift</span>
+            </span>
           </div>
         </template>
       </Column>

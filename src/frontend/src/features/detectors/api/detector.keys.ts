@@ -39,3 +39,13 @@ export const detectorKeys = {
       ? ([...detectorKeys.runsAll(), unref(id), unref(params)] as const)
       : ([...detectorKeys.runsAll(), unref(id)] as const),
 };
+
+/**
+ * TanStack Query key factory for detector enrollment tokens (Stage 5 Handshake).
+ */
+export const enrollmentTokenKeys = {
+  all: ['enrollment-tokens'] as const,
+  pending: () => [...enrollmentTokenKeys.all, 'pending'] as const,
+};
+
+

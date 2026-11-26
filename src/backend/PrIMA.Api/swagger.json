@@ -590,6 +590,217 @@
         }
       }
     },
+    "/api/detectors/enrollment-tokens": {
+      "post": {
+        "tags": [
+          "Detectors",
+          "Enrollment"
+        ],
+        "summary": "Generate a short-lived 24-hour detector enrollment token",
+        "operationId": "GenerateEnrollmentToken",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateEnrollmentTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateEnrollmentTokenResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Detectors",
+          "Enrollment"
+        ],
+        "summary": "List active pending enrollment tokens awaiting detector handshake",
+        "operationId": "GetPendingEnrollmentTokens",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PendingEnrollmentTokenDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/detectors/enrollment-tokens/{id}": {
+      "delete": {
+        "tags": [
+          "Detectors",
+          "Enrollment"
+        ],
+        "summary": "Revoke an unconsumed detector enrollment token",
+        "operationId": "RevokeEnrollmentToken",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/detectors/handshake": {
+      "post": {
+        "tags": [
+          "Detectors",
+          "Enrollment"
+        ],
+        "summary": "Automated detector handshake: validates enrollment token, idempotently synchronizes manifest, and provisions API key",
+        "operationId": "DetectorHandshake",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DetectorHandshakeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectorHandshakeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/history/reliability-kpi": {
       "get": {
         "tags": [
@@ -1883,6 +2094,93 @@
             "items": {
               "$ref": "#/components/schemas/LinkedActiveIssueDto"
             }
+          },
+          "apiKeyHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastActualIntervalSeconds": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cadenceDriftWarning": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DetectorHandshakeRequest": {
+        "required": [
+          "enrollmentToken",
+          "expectedCadenceSeconds",
+          "name",
+          "scope",
+          "targetModule"
+        ],
+        "type": "object",
+        "properties": {
+          "enrollmentToken": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "targetModule": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "expectedCadenceSeconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "webhookUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DetectorHandshakeResponse": {
+        "required": [
+          "apiKey",
+          "detectorId",
+          "name",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "detectorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "apiKey": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -1954,6 +2252,23 @@
           "activeIssuesCount": {
             "type": "integer",
             "format": "int32"
+          },
+          "apiKeyHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastActualIntervalSeconds": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cadenceDriftWarning": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -2164,6 +2479,51 @@
           "occurrenceNumber": {
             "type": "integer",
             "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GenerateEnrollmentTokenRequest": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GenerateEnrollmentTokenResponse": {
+        "required": [
+          "expiresAtUtc",
+          "id",
+          "prefix",
+          "token",
+          "tokenPrefix"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "token": {
+            "type": "string"
+          },
+          "tokenPrefix": {
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "prefix": {
+            "type": "string",
+            "readOnly": true
           }
         },
         "additionalProperties": false
@@ -2393,7 +2753,8 @@
           "processedFindingsCount",
           "recurrencesRecorded",
           "results",
-          "totalFindingsProcessed"
+          "totalFindingsProcessed",
+          "warnings"
         ],
         "type": "object",
         "properties": {
@@ -2428,6 +2789,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/FindingResultItem"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           }
         },
@@ -3148,6 +3515,45 @@
           },
           "role": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PendingEnrollmentTokenDto": {
+        "required": [
+          "createdAtUtc",
+          "createdByOfficer",
+          "expiresAtUtc",
+          "id",
+          "status",
+          "tokenPrefix"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tokenPrefix": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdByOfficer": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
           }
         },
         "additionalProperties": false

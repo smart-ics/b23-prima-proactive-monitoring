@@ -84,14 +84,14 @@ function formatCategoryLabel(cat?: string): string {
 </script>
 
 <template>
-  <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm text-slate-100 flex flex-col gap-4">
+  <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm text-slate-900 flex flex-col gap-4">
     <!-- Card Header -->
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2">
-        <ShieldCheck class="w-5 h-5 text-indigo-400" />
-        <h3 class="font-semibold text-slate-100 text-sm tracking-wide uppercase">Verification Gate</h3>
+        <ShieldCheck class="w-5 h-5 text-indigo-600" />
+        <h3 class="font-semibold text-slate-900 text-sm tracking-wide uppercase">Verification Gate</h3>
       </div>
-      <span class="text-xs px-2 py-0.5 rounded font-mono font-medium bg-slate-800 text-slate-400 border border-slate-700/60">
+      <span class="text-xs px-2 py-0.5 rounded font-mono font-medium bg-slate-100 text-slate-700 border border-slate-300">
         BR-PRIMA-004
       </span>
     </div>
@@ -125,12 +125,12 @@ function formatCategoryLabel(cat?: string): string {
 
     <div
       v-else-if="isVerificationFailed"
-      class="bg-rose-950/70 border border-rose-700/70 text-rose-200 rounded-lg p-3.5 flex items-start gap-3 shadow-sm"
+      class="bg-rose-50 border border-rose-200 text-rose-800 rounded-lg p-3.5 flex items-start gap-3 shadow-sm"
     >
-      <XCircle class="w-5 h-5 shrink-0 mt-0.5 text-rose-400" />
+      <XCircle class="w-5 h-5 shrink-0 mt-0.5 text-rose-600" />
       <div>
-        <div class="font-semibold text-sm text-rose-300">Verification Gate Blocked (Failed)</div>
-        <div class="text-xs text-rose-200/90 mt-0.5">
+        <div class="font-semibold text-sm text-rose-700">Verification Gate Blocked (Failed)</div>
+        <div class="text-xs text-rose-600 mt-0.5">
           Latest verification run detected anomaly still present. Remediation must be re-attempted.
         </div>
       </div>
@@ -138,12 +138,12 @@ function formatCategoryLabel(cat?: string): string {
 
     <div
       v-else
-      class="bg-amber-950/60 border border-amber-600/50 text-amber-200 rounded-lg p-3.5 flex items-start gap-3 shadow-sm"
+      class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3.5 flex items-start gap-3 shadow-sm"
     >
-      <Lock class="w-5 h-5 shrink-0 mt-0.5 text-amber-400" />
+      <Lock class="w-5 h-5 shrink-0 mt-0.5 text-amber-600" />
       <div>
-        <div class="font-semibold text-sm text-amber-300">Verification Gate Locked</div>
-        <div class="text-xs text-amber-200/90 mt-0.5">
+        <div class="font-semibold text-sm text-amber-700">Verification Gate Locked</div>
+        <div class="text-xs text-amber-600 mt-0.5">
           Resolution blocked until remediation is recorded and verified clean without subsequent recurrence.
         </div>
       </div>
@@ -154,28 +154,28 @@ function formatCategoryLabel(cat?: string): string {
       <!-- Step 1 -->
       <div
         class="flex items-start gap-3 p-3 rounded-lg border transition-colors"
-        :class="isStep1Complete ? 'bg-slate-800/60 border-slate-700/60' : 'bg-slate-900/50 border-slate-800'"
+        :class="isStep1Complete ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-200'"
       >
         <div class="mt-0.5">
-          <CheckCircle2 v-if="isStep1Complete" class="w-4 h-4 text-emerald-400" />
-          <Clock v-else class="w-4 h-4 text-slate-500" />
+          <CheckCircle2 v-if="isStep1Complete" class="w-4 h-4 text-emerald-600" />
+          <Clock v-else class="w-4 h-4 text-slate-400" />
         </div>
         <div class="flex-1 min-w-0">
           <div class="flex items-center justify-between">
             <span
               class="text-xs font-semibold"
-              :class="isStep1Complete ? 'text-slate-200' : 'text-slate-400'"
+              :class="isStep1Complete ? 'text-slate-900' : 'text-slate-500'"
             >
               Step 1: Investigation Started
             </span>
             <span
               class="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded"
-              :class="isStep1Complete ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-500'"
+              :class="isStep1Complete ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'"
             >
               {{ isStep1Complete ? 'Complete' : 'Pending' }}
             </span>
           </div>
-          <p class="text-xs text-slate-400 mt-0.5">
+          <p class="text-xs text-slate-500 mt-0.5">
             {{ isStep1Complete ? `Status transitioned to ${currentStatus}` : 'Officer must take or start investigation' }}
           </p>
         </div>
@@ -184,31 +184,31 @@ function formatCategoryLabel(cat?: string): string {
       <!-- Step 2 -->
       <div
         class="flex items-start gap-3 p-3 rounded-lg border transition-colors"
-        :class="isStep2Complete ? 'bg-slate-800/60 border-slate-700/60' : 'bg-slate-900/50 border-slate-800'"
+        :class="isStep2Complete ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-200'"
       >
         <div class="mt-0.5">
-          <CheckCircle2 v-if="isStep2Complete" class="w-4 h-4 text-emerald-400" />
-          <Clock v-else class="w-4 h-4 text-slate-500" />
+          <CheckCircle2 v-if="isStep2Complete" class="w-4 h-4 text-emerald-600" />
+          <Clock v-else class="w-4 h-4 text-slate-400" />
         </div>
         <div class="flex-1 min-w-0">
           <div class="flex items-center justify-between">
             <span
               class="text-xs font-semibold"
-              :class="isStep2Complete ? 'text-slate-200' : 'text-slate-400'"
+              :class="isStep2Complete ? 'text-slate-900' : 'text-slate-500'"
             >
               Step 2: Remediation Recorded
             </span>
             <span
               class="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded"
-              :class="isStep2Complete ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-500'"
+              :class="isStep2Complete ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'"
             >
               {{ isStep2Complete ? 'Complete' : 'Pending' }}
             </span>
           </div>
-          <p class="text-xs text-slate-400 mt-0.5">
+          <p class="text-xs text-slate-500 mt-0.5">
             <template v-if="resolvedRemediation">
-              <span class="text-indigo-300 font-medium">{{ formatCategoryLabel(resolvedRemediation.actionCategory) }}</span>
-              <span class="text-slate-500"> by {{ resolvedRemediation.performedBy }}</span>
+              <span class="text-indigo-700 font-medium">{{ formatCategoryLabel(resolvedRemediation.actionCategory) }}</span>
+              <span class="text-slate-600"> by {{ resolvedRemediation.performedBy }}</span>
             </template>
             <template v-else>
               Awaiting corrective SOP or database fix record
@@ -222,16 +222,16 @@ function formatCategoryLabel(cat?: string): string {
         class="flex items-start gap-3 p-3 rounded-lg border transition-colors"
         :class="[
           isStep3Complete
-            ? 'bg-slate-800/60 border-slate-700/60'
+            ? 'bg-slate-50 border-slate-200'
             : isVerificationFailed
-              ? 'bg-rose-950/30 border-rose-800/50'
-              : 'bg-slate-900/50 border-slate-800'
+              ? 'bg-rose-50 border-rose-200'
+              : 'bg-white border-slate-200'
         ]"
       >
         <div class="mt-0.5">
-          <CheckCircle2 v-if="isStep3Complete" class="w-4 h-4 text-emerald-400" />
-          <XCircle v-else-if="isVerificationFailed" class="w-4 h-4 text-rose-400" />
-          <Clock v-else class="w-4 h-4 text-slate-500" />
+          <CheckCircle2 v-if="isStep3Complete" class="w-4 h-4 text-emerald-600" />
+          <XCircle v-else-if="isVerificationFailed" class="w-4 h-4 text-rose-600" />
+          <Clock v-else class="w-4 h-4 text-slate-400" />
         </div>
         <div class="flex-1 min-w-0">
           <div class="flex items-center justify-between">
@@ -239,10 +239,10 @@ function formatCategoryLabel(cat?: string): string {
               class="text-xs font-semibold"
               :class="[
                 isStep3Complete
-                  ? 'text-slate-200'
+                  ? 'text-slate-900'
                   : isVerificationFailed
-                    ? 'text-rose-300'
-                    : 'text-slate-400'
+                    ? 'text-rose-700'
+                    : 'text-slate-500'
               ]"
             >
               Step 3: Verification Passed Clean
@@ -251,16 +251,16 @@ function formatCategoryLabel(cat?: string): string {
               class="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded"
               :class="[
                 isStep3Complete
-                  ? 'bg-emerald-500/20 text-emerald-300'
+                  ? 'bg-emerald-50 text-emerald-700'
                   : isVerificationFailed
-                    ? 'bg-rose-500/20 text-rose-300'
-                    : 'bg-slate-800 text-slate-500'
+                    ? 'bg-rose-50 text-rose-700'
+                    : 'bg-slate-100 text-slate-500'
               ]"
             >
               {{ isStep3Complete ? 'Passed' : isVerificationFailed ? 'Failed' : 'Pending' }}
             </span>
           </div>
-          <p class="text-xs mt-0.5" :class="isVerificationFailed ? 'text-rose-300/80' : 'text-slate-400'">
+          <p class="text-xs mt-0.5" :class="isVerificationFailed ? 'text-rose-600' : 'text-slate-500'">
             <template v-if="isStep3Complete">
               Verified clean by {{ resolvedVerification?.verifiedBy }}
             </template>

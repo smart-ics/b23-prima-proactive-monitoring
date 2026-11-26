@@ -14,4 +14,8 @@ public sealed record DetectorListItemDto(
     DateTime? LastHealthyHeartbeatUtc,
     decimal PassRate30d,
     int TotalRuns30d,
-    int ActiveIssuesCount);
+    int ActiveIssuesCount,
+    string? ApiKeyHash = null,
+    string? Version = null,
+    int? LastActualIntervalSeconds = null,
+    string? CadenceDriftWarning = null);

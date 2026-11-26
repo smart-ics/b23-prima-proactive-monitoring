@@ -124,6 +124,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/detectors/enrollment-tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List active pending enrollment tokens awaiting detector handshake */
+        get: operations["GetPendingEnrollmentTokens"];
+        put?: never;
+        /** Generate a short-lived 24-hour detector enrollment token */
+        post: operations["GenerateEnrollmentToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/detectors/enrollment-tokens/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke an unconsumed detector enrollment token */
+        delete: operations["RevokeEnrollmentToken"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/detectors/handshake": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Automated detector handshake: validates enrollment token, idempotently synchronizes manifest, and provisions API key */
+        post: operations["DetectorHandshake"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/history/reliability-kpi": {
         parameters: {
             query?: never;
@@ -480,6 +532,30 @@ export interface components {
             reliabilityStats: components["schemas"]["DetectorReliabilityStatsDto"];
             recentRuns: components["schemas"]["RecentRunSummaryDto"][];
             activeIssues: components["schemas"]["LinkedActiveIssueDto"][];
+            apiKeyHash?: string | null;
+            version?: string | null;
+            /** Format: int32 */
+            lastActualIntervalSeconds?: number | null;
+            cadenceDriftWarning?: string | null;
+        };
+        DetectorHandshakeRequest: {
+            enrollmentToken: string;
+            name: string;
+            targetModule: string;
+            scope: string;
+            /** Format: int32 */
+            expectedCadenceSeconds: number;
+            webhookUrl?: string | null;
+            description?: string | null;
+            version?: string | null;
+        };
+        DetectorHandshakeResponse: {
+            /** Format: uuid */
+            detectorId: string;
+            apiKey: string;
+            status: string;
+            name: string;
+            version?: string | null;
         };
         DetectorListItemDto: {
             /** Format: uuid */
@@ -503,6 +579,11 @@ export interface components {
             totalRuns30d: number;
             /** Format: int32 */
             activeIssuesCount: number;
+            apiKeyHash?: string | null;
+            version?: string | null;
+            /** Format: int32 */
+            lastActualIntervalSeconds?: number | null;
+            cadenceDriftWarning?: string | null;
         };
         DetectorReliabilityStatsDto: {
             /** Format: date-time */
@@ -569,6 +650,19 @@ export interface components {
             occurrenceId: string;
             /** Format: int32 */
             occurrenceNumber: number;
+        };
+        GenerateEnrollmentTokenRequest: {
+            label?: string | null;
+        };
+        GenerateEnrollmentTokenResponse: {
+            /** Format: uuid */
+            id: string;
+            token: string;
+            tokenPrefix: string;
+            /** Format: date-time */
+            expiresAtUtc: string;
+            label?: string | null;
+            readonly prefix: string;
         };
         GetDashboardFeedResponse: {
             summary: components["schemas"]["DashboardFeedSummaryDto"];
@@ -652,6 +746,7 @@ export interface components {
             /** Format: int32 */
             recurrencesRecorded: number;
             results: components["schemas"]["FindingResultItem"][];
+            warnings: string[];
         };
         InspectionRunDetailDto: {
             /** Format: uuid */
@@ -866,6 +961,18 @@ export interface components {
             username: string;
             fullName: string;
             role: string;
+        };
+        PendingEnrollmentTokenDto: {
+            /** Format: uuid */
+            id: string;
+            tokenPrefix: string;
+            label?: string | null;
+            status: string;
+            /** Format: date-time */
+            expiresAtUtc: string;
+            createdByOfficer: string;
+            /** Format: date-time */
+            createdAtUtc: string;
         };
         ProblemDetails: {
             type?: string | null;
@@ -1409,6 +1516,184 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetPendingEnrollmentTokens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingEnrollmentTokenDto"][];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GenerateEnrollmentToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["GenerateEnrollmentTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenerateEnrollmentTokenResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                };
+            };
+        };
+    };
+    RevokeEnrollmentToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    DetectorHandshake: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["DetectorHandshakeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetectorHandshakeResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
                 };
             };
         };
@@ -2357,3 +2642,11 @@ export type ReliabilityKpiResponse = components["schemas"]["ReliabilityKpiRespon
 export type BreakdownItemDto = components["schemas"]["BreakdownItemDto"];
 export type HistoricalIssuesResponse = components["schemas"]["HistoricalIssuesResponse"];
 export type HistoricalIssueItemDto = components["schemas"]["HistoricalIssueItemDto"];
+
+// Stage 5 Automated Detector Enrollment & Handshake Types
+export type GenerateEnrollmentTokenRequest = components["schemas"]["GenerateEnrollmentTokenRequest"];
+export type GenerateEnrollmentTokenResponse = components["schemas"]["GenerateEnrollmentTokenResponse"];
+export type PendingEnrollmentTokenDto = components["schemas"]["PendingEnrollmentTokenDto"];
+export type DetectorHandshakeRequest = components["schemas"]["DetectorHandshakeRequest"];
+export type DetectorHandshakeResponse = components["schemas"]["DetectorHandshakeResponse"];
+export type EnrollmentTokenStatus = 'Pending' | 'Consumed' | 'Revoked';

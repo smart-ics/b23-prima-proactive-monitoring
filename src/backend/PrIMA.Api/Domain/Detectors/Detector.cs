@@ -16,6 +16,10 @@ public sealed class Detector
     public DateTime? LastRunAtUtc { get; private set; }
     public DateTime? LastHealthyHeartbeatUtc { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
+    public string? ApiKeyHash { get; private set; }
+    public string? Version { get; private set; }
+    public int? LastActualIntervalSeconds { get; private set; }
+    public string? CadenceDriftWarning { get; private set; }
 
     public bool IsActive => AdminStatus == AdminStatus.Active;
     public bool IsPaused => AdminStatus == AdminStatus.Paused;
@@ -36,7 +40,11 @@ public sealed class Detector
         DetectorHealth healthStatus,
         DateTime? lastRunAtUtc,
         DateTime? lastHealthyHeartbeatUtc,
-        DateTime createdAtUtc)
+        DateTime createdAtUtc,
+        string? apiKeyHash = null,
+        string? version = null,
+        int? lastActualIntervalSeconds = null,
+        string? cadenceDriftWarning = null)
     {
         if (id == Guid.Empty) throw new ArgumentException("Detector ID cannot be empty.", nameof(id));
         if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Detector name cannot be empty.", nameof(name));
@@ -56,6 +64,10 @@ public sealed class Detector
         LastRunAtUtc = lastRunAtUtc;
         LastHealthyHeartbeatUtc = lastHealthyHeartbeatUtc;
         CreatedAtUtc = createdAtUtc;
+        ApiKeyHash = apiKeyHash;
+        Version = version;
+        LastActualIntervalSeconds = lastActualIntervalSeconds;
+        CadenceDriftWarning = cadenceDriftWarning;
     }
 
     public static Detector Create(
@@ -175,5 +187,21 @@ public sealed class Detector
         {
             LastHealthyHeartbeatUtc = timestamp;
         }
+    }
+
+    public void RecordExecutionCadence(int? actualIntervalSeconds, string? cadenceDriftWarning)
+    {
+        LastActualIntervalSeconds = actualIntervalSeconds;
+        CadenceDriftWarning = cadenceDriftWarning;
+    }
+
+    public void UpdateApiKeyHash(string apiKeyHash)
+    {
+        ApiKeyHash = apiKeyHash;
+    }
+
+    public void SetVersion(string? version)
+    {
+        Version = version?.Trim();
     }
 }

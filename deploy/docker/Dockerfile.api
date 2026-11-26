@@ -1,0 +1,36 @@
+# ==============================================================================
+# PrIMA API & Supervisor Service - Production Dockerfile
+# Multi-stage build for ASP.NET Core 8 Minimal API
+# ==============================================================================
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Copy project files and restore dependencies
+COPY ["src/backend/PrIMA.Api/PrIMA.Api.csproj", "src/backend/PrIMA.Api/"]
+RUN dotnet restore "src/backend/PrIMA.Api/PrIMA.Api.csproj"
+
+# Copy full source and publish release build
+COPY ["src/backend/PrIMA.Api/", "src/backend/PrIMA.Api/"]
+WORKDIR "/src/src/backend/PrIMA.Api"
+RUN dotnet publish "PrIMA.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+# Runtime Image
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+
+# Non-root user for security
+RUN groupadd -g 1001 appgroup && useradd -u 1001 -g appgroup appuser
+
+COPY --from=build /app/publish .
+
+# Set production environment defaults
+ENV ASPNETCORE_ENVIRONMENT=Production \
+    ASPNETCORE_URLS=http://+:5000 \
+    DOTNET_RUNNING_IN_CONTAINER=true
+
+USER appuser
+
+EXPOSE 5000
+
+ENTRYPOINT ["dotnet", "PrIMA.Api.dll"]

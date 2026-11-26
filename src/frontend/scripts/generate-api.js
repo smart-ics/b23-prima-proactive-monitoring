@@ -83,6 +83,14 @@ export type ReliabilityKpiResponse = components["schemas"]["ReliabilityKpiRespon
 export type BreakdownItemDto = components["schemas"]["BreakdownItemDto"];
 export type HistoricalIssuesResponse = components["schemas"]["HistoricalIssuesResponse"];
 export type HistoricalIssueItemDto = components["schemas"]["HistoricalIssueItemDto"];
+
+// Stage 5 Automated Detector Enrollment & Handshake Types
+export type GenerateEnrollmentTokenRequest = components["schemas"]["GenerateEnrollmentTokenRequest"];
+export type GenerateEnrollmentTokenResponse = components["schemas"]["GenerateEnrollmentTokenResponse"];
+export type PendingEnrollmentTokenDto = components["schemas"]["PendingEnrollmentTokenDto"];
+export type DetectorHandshakeRequest = components["schemas"]["DetectorHandshakeRequest"];
+export type DetectorHandshakeResponse = components["schemas"]["DetectorHandshakeResponse"];
+export type EnrollmentTokenStatus = 'Pending' | 'Consumed' | 'Revoked';
 `;
 
 appendFileSync(outputPath, typeAliases, 'utf8');

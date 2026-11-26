@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="PrIMA.Api/PrIMA.Api.csproj" />
   <Project Path="PrIMA.Api.Tests/PrIMA.Api.Tests.csproj" />
+  <Project Path="PrIMA.Detectors/PrIMA.Detectors.csproj" />
 </Solution>

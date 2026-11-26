@@ -1,0 +1,123 @@
+# ==============================================================================
+# PrIMA Proactive Monitoring - Production Docker Compose Deployment
+# Realizes DEC-008, DEC-009 for Hospital Linux / Containerized Environments
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. SQL Server 2022 Database Engine
+  # ----------------------------------------------------------------------------
+  prima-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: prima-db
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-PrIMA_Production_2026_Secure!}"
+      MSSQL_PID: "Standard"
+    ports:
+      - "1433:1433"
+    volumes:
+      - prima_sqldata:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${MSSQL_SA_PASSWORD:-PrIMA_Production_2026_Secure!}' -C -Q 'SELECT 1' || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P '${MSSQL_SA_PASSWORD:-PrIMA_Production_2026_Secure!}' -Q 'SELECT 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - prima-internal-network
+
+  # ----------------------------------------------------------------------------
+  # 2. PrIMA ASP.NET Core 8 Web API & Supervisor Service
+  # ----------------------------------------------------------------------------
+  prima-api:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.api
+    container_name: prima-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      ConnectionStrings__PrIMADb: "Server=prima-db;Database=PrIMA;User Id=sa;Password=${MSSQL_SA_PASSWORD:-PrIMA_Production_2026_Secure!};TrustServerCertificate=True;MultipleActiveResultSets=true;"
+      Jwt__SigningKey: "${PRIMA_JWT_SIGNING_KEY:-prima-super-secret-hospital-key-change-in-prod-32bytes}"
+      Jwt__ExpirationHours: "12"
+      Supervisor__PollingIntervalSeconds: "60"
+      Supervisor__UnacknowledgedSlaTimeoutMinutes: "30"
+      Retention__InspectionRunsDays: "90"
+      OperationalTimeZone: "Asia/Jakarta"
+      AllowedHosts: "*"
+    depends_on:
+      prima-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "dotnet --version > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - prima-internal-network
+    expose:
+      - "5000"
+
+  # ----------------------------------------------------------------------------
+  # 3. PrIMA Reference Detector Runner (Daemon & Webhook Engine)
+  # ----------------------------------------------------------------------------
+  prima-detectors:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.detectors
+    container_name: prima-detectors
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      PRIMA_SERVER_URL: "http://prima-api:5000"
+      PRIMA_RUNNER_PORT: "5090"
+      PRIMA_ENROLLMENT_TOKEN: "${PRIMA_ENROLLMENT_TOKEN:-}"
+      PRIMA_SIMRS_CONNECTION_STRING: "${SIMRS_CONNECTION_STRING:-Server=simrs-host;Database=SIMRS;User Id=prima_readonly;Password=<STRONG_READONLY_PASSWORD_PLACEHOLDER>;ApplicationIntent=ReadOnly;}"
+      OperationalTimeZone: "Asia/Jakarta"
+    volumes:
+      - prima_detector_credentials:/app/data
+    depends_on:
+      prima-api:
+        condition: service_started
+    networks:
+      - prima-internal-network
+    expose:
+      - "5090"
+
+  # ----------------------------------------------------------------------------
+  # 4. Nginx Reverse Proxy & TLS Termination (Frontend SPA Delivery)
+  # ----------------------------------------------------------------------------
+  prima-frontend:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile.frontend
+    container_name: prima-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/prima.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./ssl:/etc/ssl/certs:ro
+      - ./ssl:/etc/ssl/private:ro
+    depends_on:
+      - prima-api
+    networks:
+      - prima-internal-network
+
+# ------------------------------------------------------------------------------
+# Networks & Storage Volumes
+# ------------------------------------------------------------------------------
+networks:
+  prima-internal-network:
+    driver: bridge
+
+volumes:
+  prima_sqldata:
+    name: prima_sql_data
+  prima_detector_credentials:
+    name: prima_detector_credentials

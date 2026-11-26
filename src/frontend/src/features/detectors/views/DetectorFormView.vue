@@ -18,11 +18,17 @@ import {
   Globe,
   AlertTriangle,
   Info,
+  Sparkles,
+  Terminal,
+  Copy,
+  Check,
 } from 'lucide-vue-next';
 
 import {
   detectorFormSchema,
   detectorEditFormSchema,
+  DETECTOR_SCOPE_OPTIONS,
+  DETECTOR_SCOPE_LABELS,
   type DetectorScope,
   type CadenceUnit,
   type DetectorFormValues,
@@ -39,6 +45,7 @@ import {
   useRegisterDetectorMutation,
   useUpdateDetectorMutation,
 } from '../api/useDetectorQueries';
+import { EnrollmentTokenModal } from '../components';
 import { ApiError } from '@/shared/api/errors';
 import type {
   RegisterDetectorRequest,
@@ -57,29 +64,51 @@ const detectorId = computed(() => {
 
 const isEditMode = computed(() => Boolean(detectorId.value));
 
-// Scope options for PrimeVue Dropdown
-const scopeOptions: Array<{ label: string; value: DetectorScope; description: string }> = [
-  {
-    label: 'Data Quality',
-    value: 'DataQuality',
-    description: 'Discrepancies, missing records, tariff variances, data integrity anomalies.',
-  },
-  {
-    label: 'Business Logic',
-    value: 'BusinessLogic',
-    description: 'Workflow, tariff, billing, or clinical domain rule breaches.',
-  },
-  {
-    label: 'Infrastructure',
-    value: 'Infrastructure',
-    description: 'Database connectivity, probe failure, bridge heartbeat timeouts.',
-  },
-  {
-    label: 'Process Flow',
-    value: 'ProcessFlow',
-    description: 'Stuck queues, delayed batch jobs, pipeline throughput halts.',
-  },
-];
+// Registration mode switcher state: 'handshake' (Recommended) | 'manual' (§DEC-004)
+const registrationMode = ref<'handshake' | 'manual'>('handshake');
+const isEnrollmentModalOpen = ref(false);
+const runnerSnippetCopied = ref(false);
+const runnerSnippetText = `PRIMA_ENROLLMENT_TOKEN="<token>"\nPRIMA_SERVER_URL="https://prima.hospital.internal"\ndotnet run --project src/backend/PrIMA.Detectors`;
+
+async function copyRunnerSnippet(): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(runnerSnippetText);
+    runnerSnippetCopied.value = true;
+    toast.add({
+      severity: 'info',
+      summary: 'Copied to Clipboard',
+      detail: 'Runner launch snippet copied.',
+      life: 2500,
+    });
+    setTimeout(() => {
+      runnerSnippetCopied.value = false;
+    }, 2000);
+  } catch (err) {
+    console.error('Failed to copy snippet:', err);
+  }
+}
+
+// Scope options for PrimeVue Dropdown with canonical values and backward compatibility
+const scopeOptions = computed(() => {
+  const options: Array<{ label: string; value: DetectorScope; description: string }> = [
+    ...DETECTOR_SCOPE_OPTIONS,
+  ];
+
+  // If in edit mode and the existing detector has a legacy scope, append gracefully
+  if (
+    detectorData.value?.scope &&
+    !options.some((o) => o.value === detectorData.value?.scope)
+  ) {
+    const legacyVal = detectorData.value.scope as DetectorScope;
+    options.push({
+      label: DETECTOR_SCOPE_LABELS[legacyVal] ?? legacyVal,
+      value: legacyVal,
+      description: 'Legacy monitoring scope from prior configuration.',
+    });
+  }
+
+  return options;
+});
 
 // VeeValidate form initialization
 // We choose the schema based on mode: in edit mode, name is immutable/optional
@@ -98,7 +127,7 @@ const {
   initialValues: {
     name: '',
     targetModule: '',
-    scope: 'DataQuality',
+    scope: 'DataIntegrity',
     description: '',
     cadenceValue: 5,
     cadenceUnit: 'Minutes',
@@ -180,7 +209,7 @@ watch(
         values: {
           name: '',
           targetModule: '',
-          scope: 'DataQuality',
+          scope: 'DataIntegrity',
           description: '',
           cadenceValue: 5,
           cadenceUnit: 'Minutes',
@@ -344,6 +373,150 @@ const onSubmit = handleSubmit(async (values) => {
       </div>
     </div>
 
+    <!-- Segmented Registration Mode Switcher (S-05, DEC-004) -->
+    <div v-if="!isEditMode" class="bg-slate-100 p-1 rounded-xl border border-slate-200">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-1">
+        <button
+          type="button"
+          class="flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+          :class="
+            registrationMode === 'handshake'
+              ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          "
+          @click="registrationMode = 'handshake'"
+        >
+          <Sparkles class="w-4 h-4 text-amber-500" />
+          <span>Automated Handshake (Recommended)</span>
+        </button>
+
+        <button
+          type="button"
+          class="flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+          :class="
+            registrationMode === 'manual'
+              ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          "
+          @click="registrationMode = 'manual'"
+        >
+          <Shield class="w-4 h-4 text-slate-500" />
+          <span>Manual Registration</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Automated Handshake Overview & Enrollment CTA Card (§DEC-004) -->
+    <div
+      v-if="!isEditMode && registrationMode === 'handshake'"
+      class="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden divide-y divide-slate-100"
+    >
+      <!-- Hero Header -->
+      <div class="p-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white space-y-3">
+        <div class="flex items-center gap-2 text-amber-400 font-semibold text-xs tracking-wider uppercase">
+          <Sparkles class="w-4 h-4" />
+          <span>Zero-Drift Automated Enrollment Protocol</span>
+        </div>
+        <h2 class="text-lg font-bold text-white tracking-tight">
+          Enroll Detector Probes with Automated Handshake
+        </h2>
+        <p class="text-xs text-slate-300 max-w-2xl leading-relaxed">
+          Standardized detector runners automatically synchronize metadata, monitoring scope, cadence parameters,
+          and secure per-detector hashed API keys directly into PrIMA. No manual configuration drift or key mishandling.
+        </p>
+        <div class="pt-2">
+          <Button
+            type="button"
+            label="Generate Enrollment Token"
+            icon="pi pi-key"
+            class="!bg-amber-500 hover:!bg-amber-400 !text-slate-950 !border-transparent !font-bold !text-xs shadow-md"
+            @click="isEnrollmentModalOpen = true"
+          />
+        </div>
+      </div>
+
+      <!-- 3-Step Protocol Walkthrough -->
+      <div class="p-6 space-y-4">
+        <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider">
+          How Automated Handshake Works
+        </h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Step 1 -->
+          <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2">
+            <div class="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center text-xs font-bold font-mono">
+              1
+            </div>
+            <h4 class="text-xs font-semibold text-slate-900">Generate 24h Token</h4>
+            <p class="text-[11px] text-slate-600 leading-relaxed">
+              Generate a single-use cryptographically signed token secret with 24h TTL attributed to your EDP officer account.
+            </p>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2">
+            <div class="w-7 h-7 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center text-xs font-bold font-mono">
+              2
+            </div>
+            <h4 class="text-xs font-semibold text-slate-900">Launch Detector Runner</h4>
+            <p class="text-[11px] text-slate-600 leading-relaxed">
+              Export the enrollment token into the runner's environment variables and boot the .NET 8 probe service.
+            </p>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2">
+            <div class="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center text-xs font-bold font-mono">
+              3
+            </div>
+            <h4 class="text-xs font-semibold text-slate-900">Zero-Drift Synchronization</h4>
+            <p class="text-[11px] text-slate-600 leading-relaxed">
+              The runner executes <code class="font-mono bg-slate-200 px-1 py-0.5 rounded text-[10px]">POST /api/detectors/handshake</code>, provisions its unique API key, syncs manifest parameters, and activates monitoring.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Launch Snippet Block -->
+      <div class="p-6 bg-slate-50/50 space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <Terminal class="w-4 h-4 text-slate-600" />
+            <span class="text-xs font-semibold text-slate-800 uppercase tracking-wider">
+              Runner Bootstrap Environment Snippet
+            </span>
+          </div>
+
+          <button
+            type="button"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-300 rounded hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+            @click="copyRunnerSnippet"
+          >
+            <component :is="runnerSnippetCopied ? Check : Copy" class="w-3.5 h-3.5 text-slate-600" />
+            <span>{{ runnerSnippetCopied ? 'Copied' : 'Copy Snippet' }}</span>
+          </button>
+        </div>
+
+        <div class="bg-slate-900 text-slate-100 font-mono text-xs rounded-lg p-3.5 overflow-x-auto select-all shadow-inner">
+          <pre class="m-0 leading-relaxed"><code># Set environment variables and run .NET 8 detector runner
+PRIMA_ENROLLMENT_TOKEN="PRM-TOKEN-..."
+PRIMA_SERVER_URL="https://prima.hospital.internal"
+dotnet run --project src/backend/PrIMA.Detectors</code></pre>
+        </div>
+
+        <div class="pt-2 flex items-center justify-between text-xs text-slate-500">
+          <span>Need to register legacy detectors manually without handshake?</span>
+          <button
+            type="button"
+            class="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+            @click="registrationMode = 'manual'"
+          >
+            Switch to Manual Registration &rarr;
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Loading State in Edit Mode -->
     <div
       v-if="isEditMode && !isInitialized && detectorDetailQuery?.isLoading.value"
@@ -401,7 +574,7 @@ const onSubmit = handleSubmit(async (values) => {
 
     <!-- Main Form Container -->
     <form
-      v-else
+      v-else-if="registrationMode === 'manual' || isEditMode"
       @submit.prevent="onSubmit"
       class="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden"
     >
@@ -747,5 +920,10 @@ const onSubmit = handleSubmit(async (values) => {
         </div>
       </div>
     </form>
+
+    <!-- Enrollment Token Modal (Quick Enroll §DEC-004) -->
+    <EnrollmentTokenModal
+      v-model:visible="isEnrollmentModalOpen"
+    />
   </div>
 </template>

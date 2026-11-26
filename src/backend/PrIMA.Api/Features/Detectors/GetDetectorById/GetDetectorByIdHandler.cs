@@ -23,7 +23,11 @@ public sealed class GetDetectorByIdHandler
             d.HealthStatus,
             d.LastRunAtUtc,
             d.LastHealthyHeartbeatUtc,
-            d.CreatedAtUtc
+            d.CreatedAtUtc,
+            d.ApiKeyHash,
+            d.Version,
+            d.LastActualIntervalSeconds,
+            d.CadenceDriftWarning
         FROM dbo.Detectors d
         WHERE d.Id = @DetectorId;
 
@@ -118,7 +122,11 @@ public sealed class GetDetectorByIdHandler
             detector.CreatedAtUtc,
             reliabilityStats,
             recentRuns,
-            activeIssues);
+            activeIssues,
+            detector.ApiKeyHash,
+            detector.Version,
+            detector.LastActualIntervalSeconds,
+            detector.CadenceDriftWarning);
     }
 
     private sealed class DetectorMetadataRaw
@@ -135,6 +143,10 @@ public sealed class GetDetectorByIdHandler
         public DateTime? LastRunAtUtc { get; set; }
         public DateTime? LastHealthyHeartbeatUtc { get; set; }
         public DateTime CreatedAtUtc { get; set; }
+        public string? ApiKeyHash { get; set; }
+        public string? Version { get; set; }
+        public int? LastActualIntervalSeconds { get; set; }
+        public string? CadenceDriftWarning { get; set; }
     }
 
     private sealed class StatsRaw

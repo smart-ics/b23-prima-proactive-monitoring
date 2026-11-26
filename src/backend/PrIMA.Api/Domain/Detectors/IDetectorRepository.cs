@@ -15,6 +15,18 @@ public interface IDetectorRepository
     Task UpdateConfigurationAsync(Detector detector, IDbConnection conn, IDbTransaction tx, CancellationToken cancellationToken = default);
     Task UpdateAdminStatusAsync(Guid id, AdminStatus status, IDbConnection conn, IDbTransaction tx, CancellationToken cancellationToken = default);
     Task UpdateHealthAndHeartbeatAsync(Guid id, DetectorHealth health, DateTime? lastRunUtc, DateTime? lastHealthyUtc, IDbConnection conn, IDbTransaction tx, CancellationToken cancellationToken = default);
+    Task UpdateHealthAndHeartbeatAsync(
+        Guid id,
+        DetectorHealth health,
+        DateTime? lastRunUtc,
+        DateTime? lastHealthyUtc,
+        IDbConnection conn,
+        IDbTransaction tx,
+        int? lastActualIntervalSeconds,
+        string? cadenceDriftWarning,
+        bool updateCadence,
+        CancellationToken cancellationToken = default);
+    Task UpdateCadenceDriftAsync(Guid id, int? lastActualIntervalSeconds, string? cadenceDriftWarning, IDbConnection conn, IDbTransaction tx, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Detector>> GetActiveSilentCandidatesAsync(DateTime silenceCutoffUtc, IDbConnection conn, IDbTransaction? tx = null, CancellationToken cancellationToken = default);
     Task<Detector?> LockDetectorForUpdateAsync(Guid id, IDbConnection conn, IDbTransaction tx, CancellationToken cancellationToken = default);
     Task RecordInspectionRunAsync(InspectionRun run, IDbConnection conn, IDbTransaction tx, CancellationToken cancellationToken = default);

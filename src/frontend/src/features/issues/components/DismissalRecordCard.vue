@@ -43,13 +43,13 @@ function formatReasonLabel(reason?: string): string {
 function getReasonChipClass(reason?: string): string {
   switch (reason) {
     case 'FalsePositive':
-      return 'bg-purple-500/20 text-purple-300 border-purple-500/40';
+      return 'bg-purple-50 text-purple-700 border-purple-300';
     case 'AcceptedOperationalException':
-      return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+      return 'bg-amber-50 text-amber-700 border-amber-300';
     case 'DuplicateManualReport':
-      return 'bg-sky-500/20 text-sky-300 border-sky-500/40';
+      return 'bg-sky-50 text-sky-700 border-sky-300';
     default:
-      return 'bg-slate-700/60 text-slate-300 border-slate-600/50';
+      return 'bg-slate-100 text-slate-700 border-slate-300';
   }
 }
 </script>
@@ -57,21 +57,21 @@ function getReasonChipClass(reason?: string): string {
 <template>
   <div
     v-if="isDismissed && resolvedDismissal"
-    class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm text-slate-100 flex flex-col gap-4"
+    class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm text-slate-900 flex flex-col gap-4"
   >
     <!-- Card Header -->
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2">
-        <Ban class="w-5 h-5 text-rose-400" />
-        <h3 class="font-semibold text-slate-100 text-sm tracking-wide uppercase">Dismissal Record</h3>
+        <Ban class="w-5 h-5 text-rose-600" />
+        <h3 class="font-semibold text-slate-900 text-sm tracking-wide uppercase">Dismissal Record</h3>
       </div>
-      <span class="text-xs px-2 py-0.5 rounded font-mono font-medium bg-slate-800 text-slate-400 border border-slate-700/60">
+      <span class="text-xs px-2 py-0.5 rounded font-mono font-medium bg-slate-100 text-slate-700 border border-slate-300">
         BR-PRIMA-006
       </span>
     </div>
 
     <!-- Dismissal Summary Banner -->
-    <div class="bg-slate-800/60 border border-slate-700/70 rounded-lg p-3.5 space-y-3">
+    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3.5 space-y-3">
       <div class="flex items-center justify-between flex-wrap gap-2">
         <div class="flex items-center gap-2">
           <!-- Reason Chip -->
@@ -84,7 +84,7 @@ function getReasonChipClass(reason?: string): string {
 
           <span
             v-if="resolvedDismissal.isSuperseded"
-            class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30"
+            class="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-300"
           >
             Superseded
           </span>
@@ -92,27 +92,27 @@ function getReasonChipClass(reason?: string): string {
 
         <!-- Timestamp -->
         <div
-          class="text-xs text-slate-400"
+          class="text-xs text-slate-500"
           :title="formatWibDateTime(resolvedDismissal.timestampUtc, true)"
         >
           {{ formatRelativeTime(resolvedDismissal.timestampUtc) }}
-          <span class="text-slate-600">({{ formatWibDateTime(resolvedDismissal.timestampUtc, true) }})</span>
+          <span class="text-slate-400">({{ formatWibDateTime(resolvedDismissal.timestampUtc, true) }})</span>
         </div>
       </div>
 
       <!-- Dismissed by Officer -->
-      <div class="text-xs text-slate-300">
+      <div class="text-xs text-slate-700">
         <span class="text-slate-500">Dismissed by:</span>
-        <span class="font-medium text-slate-200 ml-1.5">{{ resolvedDismissal.dismissedBy }}</span>
+        <span class="font-medium text-slate-900 ml-1.5">{{ resolvedDismissal.dismissedBy }}</span>
       </div>
 
       <!-- Justification Rationale (min 20 chars per BR-PRIMA-006) -->
       <div class="space-y-1.5">
-        <div class="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 uppercase tracking-wider">
-          <Quote class="w-3.5 h-3.5 text-slate-500" />
+        <div class="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+          <Quote class="w-3.5 h-3.5 text-slate-400" />
           Documented Justification Rationale
         </div>
-        <div class="text-xs text-slate-200 bg-slate-900/90 rounded-md p-3 border border-slate-800 italic leading-relaxed whitespace-pre-wrap">
+        <div class="text-xs text-slate-900 bg-white rounded-md p-3 border border-slate-200 italic leading-relaxed whitespace-pre-wrap">
           "{{ resolvedDismissal.justificationRationale }}"
         </div>
       </div>

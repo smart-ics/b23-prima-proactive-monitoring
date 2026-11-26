@@ -1,0 +1,39 @@
+# ==============================================================================
+# PrIMA Reference Detector Runner - Production Dockerfile
+# Multi-stage build for .NET 8 Detector Daemon Worker
+# ==============================================================================
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Copy project files and restore dependencies
+COPY ["src/backend/PrIMA.Detectors/PrIMA.Detectors.csproj", "src/backend/PrIMA.Detectors/"]
+RUN dotnet restore "src/backend/PrIMA.Detectors/PrIMA.Detectors.csproj"
+
+# Copy full source and publish release build
+COPY ["src/backend/PrIMA.Detectors/", "src/backend/PrIMA.Detectors/"]
+WORKDIR "/src/src/backend/PrIMA.Detectors"
+RUN dotnet publish "PrIMA.Detectors.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+# Runtime Image
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+
+# Non-root user for security
+RUN groupadd -g 1001 appgroup && useradd -u 1001 -g appgroup appuser
+
+COPY --from=build /app/publish .
+
+# Directory for credential persistence (.prima-credentials.json)
+RUN mkdir -p /app/data && chown -R appuser:appgroup /app/data
+
+ENV ASPNETCORE_ENVIRONMENT=Production \
+    PRIMA_RUNNER_PORT=5090 \
+    ASPNETCORE_URLS=http://+:5090 \
+    DOTNET_RUNNING_IN_CONTAINER=true
+
+USER appuser
+
+EXPOSE 5090
+
+ENTRYPOINT ["dotnet", "PrIMA.Detectors.dll"]

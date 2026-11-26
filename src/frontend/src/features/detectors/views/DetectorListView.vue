@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { Key } from 'lucide-vue-next';
 import {
   useDetectorListQuery,
   useDetectorSummaryQuery,
@@ -10,6 +11,8 @@ import {
   DetectorFilterBar,
   DetectorTable,
   DetectorCard,
+  PendingEnrollmentsStrip,
+  EnrollmentTokenModal,
 } from '../components';
 import type { DetectorListQueryParams } from '../api/detector.keys';
 
@@ -25,6 +28,9 @@ const filters = ref<DetectorListQueryParams>({
 
 // View mode: 'table' | 'cards'
 const viewMode = ref<'table' | 'cards'>('table');
+
+// Quick Enroll Handshake Modal State
+const isEnrollModalVisible = ref(false);
 
 // TanStack Queries (15s polling built into useDetectorQueries)
 const {
@@ -168,6 +174,16 @@ function handleManualRefresh() {
           </button>
         </div>
 
+        <!-- Quick Enroll (Handshake) CTA Button -->
+        <button
+          type="button"
+          @click="isEnrollModalVisible = true"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium transition-colors shadow-2xs cursor-pointer"
+        >
+          <Key class="w-3.5 h-3.5" />
+          <span>Quick Enroll (Handshake)</span>
+        </button>
+
         <!-- + Register Detector CTA Button -->
         <button
           type="button"
@@ -179,6 +195,9 @@ function handleManualRefresh() {
         </button>
       </div>
     </div>
+
+    <!-- Pending Enrollments Strip (Awaiting Handshake) -->
+    <PendingEnrollmentsStrip />
 
     <!-- 4-State Health Summary Bar -->
     <HealthSummaryBar
@@ -288,5 +307,8 @@ function handleManualRefresh() {
         </div>
       </div>
     </div>
+
+    <!-- Quick Enroll Handshake Modal -->
+    <EnrollmentTokenModal v-model:visible="isEnrollModalVisible" />
   </div>
 </template>

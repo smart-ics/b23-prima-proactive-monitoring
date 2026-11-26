@@ -16,6 +16,7 @@ public sealed class MonitoringSupervisorWorker : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<MonitoringSupervisorWorker> _logger;
+    private DateTime? _lastRetentionPruningUtc;
 
     public MonitoringSupervisorWorker(
         IServiceScopeFactory scopeFactory,
@@ -79,6 +80,94 @@ public sealed class MonitoringSupervisorWorker : BackgroundService
 
         // Phase 2: Dynamic Severity Escalation (BR-PRIMA-003, DEC-006, DEC-007)
         await ExecuteSeverityEscalationPhaseAsync(connectionFactory, issueRepository, slaTimeout, utcNow, cancellationToken);
+
+        // Phase 3: Automated 90-Day Retention Pruning (DEC-009, BR-PRIMA-009)
+        var retentionInterval = TimeSpan.FromHours(24);
+        if (_lastRetentionPruningUtc is null || (utcNow - _lastRetentionPruningUtc.Value) >= retentionInterval)
+        {
+            await ExecuteRetentionPruningPhaseAsync(connectionFactory, utcNow, cancellationToken);
+            _lastRetentionPruningUtc = utcNow;
+        }
+    }
+
+    public async Task<int> ExecuteRetentionPruningAsync(DateTime? simulatedUtcNow = null, CancellationToken cancellationToken = default)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var connectionFactory = scope.ServiceProvider.GetRequiredService<ISqlConnectionFactory>();
+        var utcNow = simulatedUtcNow ?? DateTime.UtcNow;
+
+        var deleted = await ExecuteRetentionPruningPhaseAsync(connectionFactory, utcNow, cancellationToken);
+        _lastRetentionPruningUtc = utcNow;
+        return deleted;
+    }
+
+    private async Task<int> ExecuteRetentionPruningPhaseAsync(
+        ISqlConnectionFactory connectionFactory,
+        DateTime utcNow,
+        CancellationToken cancellationToken)
+    {
+        var retentionDays = _configuration.GetValue<int>("Retention:InspectionRunsDays", 90);
+        if (retentionDays <= 0)
+        {
+            retentionDays = 90;
+        }
+
+        var cutoffUtc = utcNow.AddDays(-retentionDays);
+        var totalDeleted = 0;
+
+        try
+        {
+            using var connection = connectionFactory.CreateConnection();
+            if (connection.State != ConnectionState.Open)
+            {
+                if (connection is DbConnection dbConn)
+                {
+                    await dbConn.OpenAsync(cancellationToken);
+                }
+                else
+                {
+                    connection.Open();
+                }
+            }
+
+            const string deleteBatchSql = """
+                DELETE TOP (1000) ir
+                FROM dbo.InspectionRuns ir
+                WHERE ir.Outcome = 'Passed'
+                  AND ir.ExecutionTimestampUtc < @CutoffUtc
+                  AND NOT EXISTS (
+                      SELECT 1 FROM dbo.Occurrences o WHERE o.InspectionRunId = ir.Id
+                  );
+                """;
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var rowsAffected = await connection.ExecuteAsync(new CommandDefinition(
+                    deleteBatchSql,
+                    new { CutoffUtc = cutoffUtc },
+                    cancellationToken: cancellationToken));
+
+                totalDeleted += rowsAffected;
+
+                if (rowsAffected == 0)
+                {
+                    break;
+                }
+
+                _logger.LogInformation("Retention pruning batch completed: deleted {BatchCount} clean passed runs (total: {TotalCount}).", rowsAffected, totalDeleted);
+            }
+
+            if (totalDeleted > 0)
+            {
+                _logger.LogInformation("Automated retention pruning finished. Total clean passed runs deleted: {TotalDeleted} older than {CutoffUtc}.", totalDeleted, cutoffUtc);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to execute automated retention pruning cycle.");
+        }
+
+        return totalDeleted;
     }
 
     private async Task ExecuteSilenceSupervisionPhaseAsync(
@@ -101,15 +190,18 @@ public sealed class MonitoringSupervisorWorker : BackgroundService
             }
         }
 
-        // Query active detectors where COALESCE(LastHealthyHeartbeatUtc, CreatedAtUtc) < DATEADD(SECOND, -(ExpectedCadenceSeconds * 2.0), SYSUTCDATETIME())
+        // Query active detectors where COALESCE(LastHealthyHeartbeatUtc, CreatedAtUtc) < DATEADD(SECOND, -(ExpectedCadenceSeconds * 2.0), @UtcNow)
         const string candidateSql = """
             SELECT d.Id
             FROM dbo.Detectors d WITH (NOLOCK)
             WHERE d.AdminStatus = 'Active'
-              AND COALESCE(d.LastHealthyHeartbeatUtc, d.CreatedAtUtc) < DATEADD(SECOND, -(d.ExpectedCadenceSeconds * 2.0), SYSUTCDATETIME());
+              AND COALESCE(d.LastHealthyHeartbeatUtc, d.CreatedAtUtc) < DATEADD(SECOND, -(d.ExpectedCadenceSeconds * 2.0), @UtcNow);
             """;
 
-        var candidateIds = (await connection.QueryAsync<Guid>(new CommandDefinition(candidateSql, cancellationToken: cancellationToken))).ToList();
+        var candidateIds = (await connection.QueryAsync<Guid>(new CommandDefinition(
+            candidateSql,
+            new { UtcNow = utcNow },
+            cancellationToken: cancellationToken))).ToList();
 
         foreach (var detectorId in candidateIds)
         {

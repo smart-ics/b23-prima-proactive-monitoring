@@ -25,7 +25,8 @@ public sealed class DetectorRepository : IDetectorRepository
         const string sql = """
             SELECT
                 Id, Name, Description, Scope, TargetModule, ExpectedCadenceSeconds,
-                WebhookUrl, AdminStatus, HealthStatus, LastRunAtUtc, LastHealthyHeartbeatUtc, CreatedAtUtc
+                WebhookUrl, AdminStatus, HealthStatus, LastRunAtUtc, LastHealthyHeartbeatUtc, CreatedAtUtc,
+                ApiKeyHash, Version, LastActualIntervalSeconds, CadenceDriftWarning
             FROM dbo.Detectors
             WHERE Id = @Id;
             """;
@@ -49,7 +50,8 @@ public sealed class DetectorRepository : IDetectorRepository
         const string sql = """
             SELECT
                 Id, Name, Description, Scope, TargetModule, ExpectedCadenceSeconds,
-                WebhookUrl, AdminStatus, HealthStatus, LastRunAtUtc, LastHealthyHeartbeatUtc, CreatedAtUtc
+                WebhookUrl, AdminStatus, HealthStatus, LastRunAtUtc, LastHealthyHeartbeatUtc, CreatedAtUtc,
+                ApiKeyHash, Version, LastActualIntervalSeconds, CadenceDriftWarning
             FROM dbo.Detectors
             WHERE Name = @Name;
             """;
@@ -68,7 +70,8 @@ public sealed class DetectorRepository : IDetectorRepository
         const string sql = """
             SELECT
                 Id, Name, Description, Scope, TargetModule, ExpectedCadenceSeconds,
-                WebhookUrl, AdminStatus, HealthStatus, LastRunAtUtc, LastHealthyHeartbeatUtc, CreatedAtUtc
+                WebhookUrl, AdminStatus, HealthStatus, LastRunAtUtc, LastHealthyHeartbeatUtc, CreatedAtUtc,
+                ApiKeyHash, Version, LastActualIntervalSeconds, CadenceDriftWarning
             FROM dbo.Detectors
             ORDER BY Name ASC;
             """;
@@ -94,10 +97,12 @@ public sealed class DetectorRepository : IDetectorRepository
         const string sql = """
             INSERT INTO dbo.Detectors (
                 Id, Name, Description, Scope, TargetModule, ExpectedCadenceSeconds,
-                WebhookUrl, AdminStatus, HealthStatus, LastRunAtUtc, LastHealthyHeartbeatUtc, CreatedAtUtc
+                WebhookUrl, AdminStatus, HealthStatus, LastRunAtUtc, LastHealthyHeartbeatUtc, CreatedAtUtc,
+                ApiKeyHash, Version, LastActualIntervalSeconds, CadenceDriftWarning
             ) VALUES (
                 @Id, @Name, @Description, @Scope, @TargetModule, @ExpectedCadenceSeconds,
-                @WebhookUrl, @AdminStatus, @HealthStatus, @LastRunAtUtc, @LastHealthyHeartbeatUtc, @CreatedAtUtc
+                @WebhookUrl, @AdminStatus, @HealthStatus, @LastRunAtUtc, @LastHealthyHeartbeatUtc, @CreatedAtUtc,
+                @ApiKeyHash, @Version, @LastActualIntervalSeconds, @CadenceDriftWarning
             );
             """;
 
@@ -114,7 +119,11 @@ public sealed class DetectorRepository : IDetectorRepository
             HealthStatus = detector.HealthStatus.ToString(),
             detector.LastRunAtUtc,
             detector.LastHealthyHeartbeatUtc,
-            detector.CreatedAtUtc
+            detector.CreatedAtUtc,
+            detector.ApiKeyHash,
+            detector.Version,
+            detector.LastActualIntervalSeconds,
+            detector.CadenceDriftWarning
         };
 
         return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
@@ -207,11 +216,28 @@ public sealed class DetectorRepository : IDetectorRepository
 
     public Task UpdateHealthAndHeartbeatAsync(Guid id, DetectorHealth health, DateTime? lastRunUtc, DateTime? lastHealthyUtc, IDbConnection conn, IDbTransaction tx, CancellationToken cancellationToken = default)
     {
+        return UpdateHealthAndHeartbeatAsync(id, health, lastRunUtc, lastHealthyUtc, conn, tx, null, null, false, cancellationToken);
+    }
+
+    public Task UpdateHealthAndHeartbeatAsync(
+        Guid id,
+        DetectorHealth health,
+        DateTime? lastRunUtc,
+        DateTime? lastHealthyUtc,
+        IDbConnection conn,
+        IDbTransaction tx,
+        int? lastActualIntervalSeconds,
+        string? cadenceDriftWarning,
+        bool updateCadence,
+        CancellationToken cancellationToken = default)
+    {
         const string sql = """
             UPDATE dbo.Detectors
             SET HealthStatus = @HealthStatus,
                 LastRunAtUtc = COALESCE(@LastRunAtUtc, LastRunAtUtc),
-                LastHealthyHeartbeatUtc = COALESCE(@LastHealthyHeartbeatUtc, LastHealthyHeartbeatUtc)
+                LastHealthyHeartbeatUtc = COALESCE(@LastHealthyHeartbeatUtc, LastHealthyHeartbeatUtc),
+                LastActualIntervalSeconds = CASE WHEN @UpdateCadence = 1 THEN @LastActualIntervalSeconds ELSE LastActualIntervalSeconds END,
+                CadenceDriftWarning = CASE WHEN @UpdateCadence = 1 THEN @CadenceDriftWarning ELSE CadenceDriftWarning END
             WHERE Id = @Id;
             """;
 
@@ -220,7 +246,30 @@ public sealed class DetectorRepository : IDetectorRepository
             Id = id,
             HealthStatus = health.ToString(),
             LastRunAtUtc = lastRunUtc,
-            LastHealthyHeartbeatUtc = lastHealthyUtc
+            LastHealthyHeartbeatUtc = lastHealthyUtc,
+            LastActualIntervalSeconds = lastActualIntervalSeconds,
+            CadenceDriftWarning = cadenceDriftWarning,
+            UpdateCadence = updateCadence ? 1 : 0
+        };
+
+        return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
+            connection.ExecuteAsync(new CommandDefinition(sql, parameters, transaction, cancellationToken: cancellationToken)));
+    }
+
+    public Task UpdateCadenceDriftAsync(Guid id, int? lastActualIntervalSeconds, string? cadenceDriftWarning, IDbConnection conn, IDbTransaction tx, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            UPDATE dbo.Detectors
+            SET LastActualIntervalSeconds = @LastActualIntervalSeconds,
+                CadenceDriftWarning = @CadenceDriftWarning
+            WHERE Id = @Id;
+            """;
+
+        var parameters = new
+        {
+            Id = id,
+            LastActualIntervalSeconds = lastActualIntervalSeconds,
+            CadenceDriftWarning = cadenceDriftWarning
         };
 
         return ExecuteWithConnectionAsync(conn, tx, (connection, transaction) =>
@@ -232,7 +281,8 @@ public sealed class DetectorRepository : IDetectorRepository
         const string sql = """
             SELECT
                 Id, Name, Description, Scope, TargetModule, ExpectedCadenceSeconds,
-                WebhookUrl, AdminStatus, HealthStatus, LastRunAtUtc, LastHealthyHeartbeatUtc, CreatedAtUtc
+                WebhookUrl, AdminStatus, HealthStatus, LastRunAtUtc, LastHealthyHeartbeatUtc, CreatedAtUtc,
+                ApiKeyHash, Version, LastActualIntervalSeconds, CadenceDriftWarning
             FROM dbo.Detectors
             WHERE AdminStatus = 'Active'
               AND COALESCE(LastHealthyHeartbeatUtc, CreatedAtUtc) < @SilenceCutoffUtc;
@@ -252,7 +302,8 @@ public sealed class DetectorRepository : IDetectorRepository
         const string sql = """
             SELECT
                 Id, Name, Description, Scope, TargetModule, ExpectedCadenceSeconds,
-                WebhookUrl, AdminStatus, HealthStatus, LastRunAtUtc, LastHealthyHeartbeatUtc, CreatedAtUtc
+                WebhookUrl, AdminStatus, HealthStatus, LastRunAtUtc, LastHealthyHeartbeatUtc, CreatedAtUtc,
+                ApiKeyHash, Version, LastActualIntervalSeconds, CadenceDriftWarning
             FROM dbo.Detectors WITH (UPDLOCK, ROWLOCK)
             WHERE Id = @Id;
             """;
@@ -408,7 +459,11 @@ public sealed class DetectorRepository : IDetectorRepository
             Enum.Parse<DetectorHealth>(row.HealthStatus, ignoreCase: true),
             row.LastRunAtUtc,
             row.LastHealthyHeartbeatUtc,
-            row.CreatedAtUtc);
+            row.CreatedAtUtc,
+            row.ApiKeyHash,
+            row.Version,
+            row.LastActualIntervalSeconds,
+            row.CadenceDriftWarning);
     }
 
     private sealed record DetectorRow(
@@ -423,5 +478,9 @@ public sealed class DetectorRepository : IDetectorRepository
         string HealthStatus,
         DateTime? LastRunAtUtc,
         DateTime? LastHealthyHeartbeatUtc,
-        DateTime CreatedAtUtc);
+        DateTime CreatedAtUtc,
+        string? ApiKeyHash = null,
+        string? Version = null,
+        int? LastActualIntervalSeconds = null,
+        string? CadenceDriftWarning = null);
 }
